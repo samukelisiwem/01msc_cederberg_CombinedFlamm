@@ -4,7 +4,6 @@ setwd("/Users/samukelisiwem/OneDrive - Nelson Mandela University/Documents/3_SCH
 library(tidyverse)
 library(readxl) 
 
-
 #reads data
 #Loads the Excel file
 #Cleans and reshapes the data
@@ -30,10 +29,27 @@ Combined02 <- CombinedOG %>%
     )
 
 #save data in long
-CombinedLong <- CombinedOG %>%
-  pivot_longer(cols = c("TimeToFlaming", "PostBurntMassEstimate", "MaximumFlameTemperature", "FMC_percentage"),
+CombinedLong <- Combined02 %>%
+  pivot_longer(cols = c("TimeToFlaming(s)", "PostBurntMassEstimate(%)", "MaximumFlameTemperature(°C)", "FMC(%)", "FlammabilityIndex"),
                names_to = "variable", values_to = "value")
 
+#boxplots on Long data
+CombinedLong %>%
+  ggplot() +
+  geom_boxplot(aes(y = value, x = species_code)) +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1, size = 6)) +
+  facet_wrap(vars(variable), scales = "free")
 
+#Flamm Attriutes by family
+CombinedLong %>%
+  ggplot() +
+  geom_boxplot(aes(y = value, x = Accepted_family)) +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1, size = 8)) +
+  facet_wrap(vars(variable), scales = "free")
 
-
+#Flamm Attriutes by growth form
+CombinedLong %>%
+  ggplot() +
+  geom_boxplot(aes(y = value, x = growth_form)) +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+  facet_wrap(vars(variable), scales = "free")
