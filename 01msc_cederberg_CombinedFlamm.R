@@ -5,6 +5,7 @@ setwd("/Users/samukelisiwem/OneDrive - Nelson Mandela University/Documents/3_SCH
 library(tidyverse)
 library(readxl) 
 library(dplyr)
+library(GGally)
 
 #reads data
 #Loads the Excel file
@@ -97,6 +98,34 @@ CombinedLong02 <- CombinedSelected04 %>%
   pivot_longer(cols = c("TimeToFlaming(s)", "PostBurntMassEstimate(%)", "MaximumFlameTemperature(°C)", "FMC(%)", "FlammabilityIndex"),
                names_to = "variable", values_to = "value")
 
+head(CombinedLong02)
 
+# plot everything against everything
+CombinedSelected04 %>%
+  select(`Site`, `TimeToFlaming(s)`, `PostBurntMassEstimate(%)`, `MaximumFlameTemperature(°C)`, `FMC(%)`,`species_name`) %>%
+    GGally::ggpairs(columns = 2:ncol(.))
+library(GGally)
+
+# Select only the numeric flammability columns and site/species if needed
+CombinedSelected04 %>%
+  select(
+    Site,
+    species_name,
+    `TimeToFlaming(s)`,
+    `PostBurntMassEstimate(%)`,
+    `MaximumFlameTemperature(°C)`,
+    `FMC(%)`
+  ) %>%
+  ggpairs(columns = 3:6)            # Only numeric columns for pairwise plots
+                                
+       
+#maximum temperature vs postburntmass
+ggplot(CombinedSelected04, aes(x = `MaximumFlameTemperature(°C)`, y = `PostBurntMassEstimate(%)`)) +
+  geom_point(alpha = 0.6) +
+  geom_smooth(method = "lm", se = TRUE, color = "blue") +
+  labs(title = "",
+       x = "Maximum Temperature (°C)",
+       y = "Estimated Unburned Plant Mass") +
+  theme_minimal()                     #mmh...
 
 
