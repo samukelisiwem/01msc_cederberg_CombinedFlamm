@@ -1,8 +1,10 @@
 #
 setwd("/Users/samukelisiwem/OneDrive - Nelson Mandela University/Documents/3_SCHOLARY/PhD/Data collection/Analysis/Data/")
 
+#packages
 library(tidyverse)
 library(readxl) 
+library(dplyr)
 
 #reads data
 #Loads the Excel file
@@ -53,3 +55,48 @@ CombinedLong %>%
   geom_boxplot(aes(y = value, x = growth_form)) +
   theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
   facet_wrap(vars(variable), scales = "free")
+
+# See what sheets are in the Excel workbook
+excel_sheets("01msc_cederberg_CombinedFlamm.xlsx") #aaahh!
+
+#checking class of the binary variable Blowtorch 0:no torch, 1 blowtorched
+class(CombinedLong$blowtorch)
+
+# structure overview of the entire dataframe
+str(CombinedLong)
+
+sapply(CombinedLong, class) #melikeythisone
+
+#cederberg means
+Combined02 %>% #cant use long data here because column is just value...
+group_by(Site) %>%
+  summarize(`FMC(%)` = mean(`FMC(%)`), 
+            `TimeToFlaming(s)` = mean(`TimeToFlaming(s)`)
+  )
+
+#filtered cederberg, and selected a specific set of variables
+#and arranged Temp in desc.order
+Combined02 %>% 
+  filter(Site == "Cederberg") %>%
+  select(`Date`, `MaximumFlameTemperature(°C)`,`FMC(%)`) %>%
+  arrange(desc(`MaximumFlameTemperature(°C)`))
+
+#i want to remove some columns from data
+#probably should be done before reshaping data to Long format...?
+CombinedSelected04 <- Combined02 %>%
+  select(-c(Taxonomic_status,TTF,`PreFireMass_(g)`, PBM,MFT,paperbagID,`fresh mass (g)`,`dried mass (g)`,))
+
+#the way time is written here is odd in time burnt
+library(hms)
+CombinedSelected04 <- CombinedSelected04 %>%
+  mutate(time_burnt = as_hms(`time burnt`)) %>%   # create new cleaned column
+  select(-`time burnt`)                           # remove the original column
+
+#may try to make long format from the recent df
+CombinedLong02 <- CombinedSelected04 %>%
+  pivot_longer(cols = c("TimeToFlaming(s)", "PostBurntMassEstimate(%)", "MaximumFlameTemperature(°C)", "FMC(%)", "FlammabilityIndex"),
+               names_to = "variable", values_to = "value")
+
+
+
+
