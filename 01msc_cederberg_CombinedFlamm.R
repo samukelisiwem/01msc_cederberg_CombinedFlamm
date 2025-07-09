@@ -6,6 +6,7 @@ library(tidyverse)
 library(readxl) 
 library(dplyr)
 library(GGally)
+library(hms)
 
 #reads data
 #Loads the Excel file
@@ -22,9 +23,24 @@ read_xlsx("01msc_cederberg_CombinedFlamm.xlsx", sheet = "Combined") %>%
 
 CombinedOG <- read_xlsx("01msc_cederberg_CombinedFlamm.xlsx", sheet = "Combined")
 
+
+#Datasource shows data from PhD / MSc
+CombinedOG <- CombinedOG %>%
+  mutate(
+    year = substr(as.character(Date), 1, 4),
+    DataSource = case_when(
+      year == "2024" ~ "PhD",
+      year %in% c("2018", "2019") ~ "MSc")
+    )
+  
+#checking PhD/MSc entries
+CombinedOG %>%
+  count(DataSource)     #alrightee
+
+
 #rename some headings
 Combined02 <- CombinedOG %>%
-  rename(
+ rename(
     `FMC(%)` = FMC_percentage,
     `TimeToFlaming(s)` = TimeToFlaming,
     `PostBurntMassEstimate(%)` = PostBurntMassEstimate,
@@ -39,21 +55,21 @@ CombinedLong <- Combined02 %>%
 #boxplots on Long data
 CombinedLong %>%
   ggplot() +
-  geom_boxplot(aes(y = value, x = species_code)) +
+  geom_boxplot(aes(y = value, x = species_code, fill = DataSource)) +
   theme(axis.text.x = element_text(angle = 45, hjust = 1, size = 6)) +
   facet_wrap(vars(variable), scales = "free")
 
 #Flamm Attriutes by family
 CombinedLong %>%
   ggplot() +
-  geom_boxplot(aes(y = value, x = Accepted_family)) +
+  geom_boxplot(aes(y = value, x = Accepted_family, fill = DataSource)) +
   theme(axis.text.x = element_text(angle = 45, hjust = 1, size = 8)) +
   facet_wrap(vars(variable), scales = "free")
 
 #Flamm Attriutes by growth form
 CombinedLong %>%
   ggplot() +
-  geom_boxplot(aes(y = value, x = growth_form)) +
+  geom_boxplot(aes(y = value, x = growth_form, fill = DataSource)) +
   theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
   facet_wrap(vars(variable), scales = "free")
 
@@ -88,7 +104,6 @@ CombinedSelected04 <- Combined02 %>%
   select(-c(Taxonomic_status,TTF,`PreFireMass_(g)`, PBM,MFT,paperbagID,`fresh mass (g)`,`dried mass (g)`,))
 
 #the way time is written here is odd in time burnt
-library(hms)
 CombinedSelected04 <- CombinedSelected04 %>%
   mutate(time_burnt = as_hms(`time burnt`)) %>%   # create new cleaned column
   select(-`time burnt`)                           # remove the original column
@@ -102,21 +117,19 @@ head(CombinedLong02)
 
 # plot everything against everything
 CombinedSelected04 %>%
-  select(`Site`, `TimeToFlaming(s)`, `PostBurntMassEstimate(%)`, `MaximumFlameTemperature(°C)`, `FMC(%)`,`species_name`) %>%
+  select(`Site`, `TimeToFlaming(s)`, `PostBurntMassEstimate(%)`, `MaximumFlameTemperature(°C)`, `FMC(%)`) %>%
     GGally::ggpairs(columns = 2:ncol(.))
-library(GGally)
 
-# Select only the numeric flammability columns and site/species if needed
+
+# Select only the numeric flammability columns 
 CombinedSelected04 %>%
   select(
-    Site,
-    species_name,
     `TimeToFlaming(s)`,
     `PostBurntMassEstimate(%)`,
     `MaximumFlameTemperature(°C)`,
     `FMC(%)`
   ) %>%
-  ggpairs(columns = 3:6)            # Only numeric columns for pairwise plots
+  ggpairs()            # Only numeric columns for pairwise plots
                                 
        
 #maximum temperature vs postburntmass
@@ -126,6 +139,6 @@ ggplot(CombinedSelected04, aes(x = `MaximumFlameTemperature(°C)`, y = `PostBurn
   labs(title = "",
        x = "Maximum Temperature (°C)",
        y = "Estimated Unburned Plant Mass") +
-  theme_minimal()                     #mmh...
+  theme_minimal()                              #mmh...
 
 
