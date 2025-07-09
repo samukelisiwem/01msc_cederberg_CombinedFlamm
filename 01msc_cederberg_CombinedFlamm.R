@@ -54,10 +54,22 @@ CombinedLong <- Combined02 %>%
 
 #boxplots on Long data
 CombinedLong %>%
+  group_by(variable) %>%
+  mutate(species_code = fct_reorder(species_code, value, .fun = median, .na_rm = TRUE)) %>%
+  ungroup() %>%
   ggplot() +
   geom_boxplot(aes(y = value, x = species_code, fill = DataSource)) +
   theme(axis.text.x = element_text(angle = 45, hjust = 1, size = 6)) +
-  facet_wrap(vars(variable), scales = "free")
+  facet_wrap(vars(variable), scales = "free")       #MSc shrubs and trees
+                                                    #PhD herbs and shrubs
+
+#maybe compare them independent datas
+CombinedLong %>%
+  group_by(variable) %>%
+  summarise(
+    p_value = wilcox.test(value ~ DataSource)$p.value
+  )
+
 
 #Flamm Attriutes by family
 CombinedLong %>%
