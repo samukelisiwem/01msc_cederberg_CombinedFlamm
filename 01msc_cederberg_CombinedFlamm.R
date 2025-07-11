@@ -21,7 +21,16 @@ read_xlsx("01msc_cederberg_CombinedFlamm.xlsx", sheet = "Combined") %>%
   theme(axis.text.x = element_text(angle = 45, hjust = 1, size = 6)) +
   facet_wrap(vars(variable), scales = "free")
 
-CombinedOG <- read_xlsx("01msc_cederberg_CombinedFlamm.xlsx", sheet = "Combined")
+#read in data from online
+read_xlsx("Data/01msc_cederberg_CombinedFlamm.xlsx", sheet = "Combined") %>%
+  pivot_longer(cols = c("TimeToFlaming", "PostBurntMassEstimate", "MaximumFlameTemperature","FMC_percentage"),
+               names_to = "variable", values_to = "value") %>%
+  ggplot() +
+  geom_boxplot(aes(y = value, x = species_code)) +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1, size = 6)) +
+  facet_wrap(vars(variable), scales = "free")
+
+CombinedOG <- read_xlsx("Data/01msc_cederberg_CombinedFlamm.xlsx", sheet = "Combined")
 
 
 #Datasource shows data from PhD / MSc
