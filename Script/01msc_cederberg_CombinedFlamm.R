@@ -148,7 +148,5 @@ ggplot(CombinedOG, aes(x = `MaximumFlameTemperature(°C)`, y = `PostBurntMassEst
        y = "Unburned Plant Mass") +
   theme_minimal()                             #mmh...
 
-#
-
 
 
