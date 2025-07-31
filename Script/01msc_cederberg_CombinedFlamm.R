@@ -81,6 +81,26 @@ CombinedOG <- CombinedOG %>%
 summary(CombinedOG)
 
 
+#wanna see which species are in each growth form
+lapply(split(CombinedOG$species_name, CombinedOG$growth_form), unique)   #yup
+
+
+#change Metrosideros angustifolia to Tree
+CombinedOG$growth_form[CombinedOG$species_name == "Metrosideros angustifolia"] <- "Tree"
+
+
+#add column Native and Alien called Origin? 
+#there is already vegtype column = Fynbos, thicket, IAPs
+#Origin column : Fyn and Thick = Native and IAPs = Alien 
+CombinedOG$Origin <- ifelse(CombinedOG$Vegtype %in% c("Fynbos", "Thicket"), "Native", "Alien")
+
+unique(CombinedOG$Origin)
+
+table(CombinedOG$Origin)
+
+print(unique(CombinedOG[, c("species_name", "Origin")]), n = Inf)  #yes this I want
+
+
 #Pivot CombinedOG to long format 
 CombinedLong <- CombinedOG %>%
   pivot_longer(cols = c("TimeToFlaming(s)", "PostBurntMassEstimate(%)", "MaximumFlameTemperature(°C)", "FMC(%)", "FlammabilityIndex"),
@@ -98,13 +118,23 @@ CombinedLong %>%
   facet_wrap(vars(flammtrait), scales = "free")                       #MSc has more shrubs and trees
                                                                       #MSc has more higher temps compared to PhD  
                                                                       #PhD has more herbs and shrubs
-                                                   
+ 
+#colour by Origin
+CombinedLong %>%
+  filter(flammtrait != "FlammabilityIndex") %>%
+  group_by(flammtrait) %>%
+  ggplot(aes(y = value, x = species_code, fill = Origin)) +
+  geom_boxplot() +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1, size = 6)) +
+  facet_wrap(vars(flammtrait), scales = "free")   
+
+                                                  
 
 #see if MSc vs PhD are independent / if comparable
 #sure differ by site, species, samples, replicates,...etc
 summary(lm(value ~ DataSource + species_name, data = CombinedLong))
                                                                       #No significant difference in the values between MSc and PhD
-                                                                      #accoubts for species variation, this makes some sense to me than lmer below 
+                                                                      #accounts for species variation, this makes some sense to me than lmer below 
                                                                       #here datas comparable
 
 
@@ -134,6 +164,7 @@ CombinedLong %>%
 ##Does flammability traits differ between families and growth forms?
 ##Is flammability (can be done per flammatrait) explained by family or  growth form?
 summary(lm(value ~ Accepted_family, data = CombinedLong, subset = (flammtrait == "FlammabilityIndex")))
+
 
 # Model with growth form
 summary(lm(value ~ growth_form, data = CombinedLong, subset = (flammtrait == "FlammabilityIndex")))
