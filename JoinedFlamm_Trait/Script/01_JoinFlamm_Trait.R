@@ -1,5 +1,4 @@
 
-setwd("C:/Users/samukelisiwem/OneDrive - Nelson Mandela University/Documents/3_SCHOLARY/PhD/Data collection/Trait dimensions Analysis/")
 
 library(tidyverse)
 library(readxl)
@@ -325,6 +324,8 @@ r.squaredGLMM(m_gf_TT)
 r.squaredGLMM(m_gf_MT)
 r.squaredGLMM(m_gf_PBM)
 
+
+#########################################xxxxx#################
 <<<<<<< HEAD
 ########################
 =======
