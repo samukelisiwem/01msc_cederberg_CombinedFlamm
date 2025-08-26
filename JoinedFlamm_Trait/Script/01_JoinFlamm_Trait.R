@@ -1,6 +1,7 @@
 #
+#Data chapter 2: Investigating the potential of predicting flammability based of leaf traits
 ##
-###Flamm is flammability experiemnts data 
+###Flamm is flammability experiments data 
 ###Fieldtrait and Labtrait are Henrys leaf trait data
 
 library(tidyverse)
@@ -18,8 +19,7 @@ Flamm <- read_excel("Data/CombinedOG.xlsx")
 #
 ##
 ###henry field trait data
-#Fieldtrait <- read_excel("Data/Field_Traits_Final.xlsx")
-
+###Fieldtrait <- read_excel("Data/Field_Traits_Final.xlsx")
 Fieldtrait <- read.csv("Data/Field_Traits_Final.csv") #oki
 
 #
@@ -81,7 +81,7 @@ colnames(Shared_spp_df01)
 
 #
 ##Labtrait data
-Labtraitt <- read.csv("Data/Lab_Traits_Final.csv")
+Labtrait <- read.csv("Data/Lab_Traits_Final.csv")
 
 #
 ##
@@ -106,16 +106,14 @@ Shared_spp_df02 <- Shared_spp_df01 %>%
 
 colnames(Shared_spp_df02)
 
-#28 leaf traits and 3 flammability traits
+#28 leaf traits 
 
 trait_col <- c(
-  # 11 Field traits 
-  "height_cm", "canopy_axis_1_cm", "canopy_axis_2_cm", "canopy_area_cm2",
+  "height_cm", "canopy_axis_1_cm", "canopy_axis_2_cm", "canopy_area_cm2",  # 11 Field traits 
   "branch_order", "pubescence", "percent_N", "percent_C", "C_to_N_ratio",
   "d_15N_14N", "d_13C_12C",
   
-  # 17 Lab traits
-  "FMC_proportion", "num_leaves", "leaf_area_cm2", "leaf_length_cm",
+  "FMC_proportion", "num_leaves", "leaf_area_cm2", "leaf_length_cm",     # 17 Lab traits
   "avg_leaf_width_cm", "max_leaf_width_cm", "leaf_thickness_mm",
   "leaf_fresh_wgt_g", "leaf_dry_wgt_g", "twig_fresh_g", "twig_dry_g", 
   "lma", "fwc", "succulence", "ldmc", "lwr", "twig_fwc"
@@ -129,7 +127,6 @@ sapply(Shared_spp_df02[trait_col], class)
 #
 ##
 ###Convert all trait columns to relevant class - mostly numeric 
-
 Shared_spp_df02 <- Shared_spp_df02 %>%
   mutate(across(c(
     height_cm, canopy_axis_2_cm, canopy_area_cm2,
@@ -142,7 +139,7 @@ Shared_spp_df02 <- Shared_spp_df02 %>%
 
 #
 ##
-###Flammability traits column names
+### 3 Flammability traits names
 flamm_col <- c(
   "TimeToFlaming(s)", 
   "PostBurntMassEstimate(%)", 
@@ -199,7 +196,6 @@ qqnorm(PBM); qqline(PBM)      #no transformation needed for any response variabl
 #
 ##Traits grouped
 ###
-
 structural_traits <- c(
   "height_cm", "canopy_axis_1_cm", "canopy_axis_2_cm", "canopy_area_cm2",
   "branch_order", "leaf_area_cm2", "leaf_length_cm", "avg_leaf_width_cm",
@@ -234,7 +230,7 @@ Shared_spp_df02 <- Shared_spp_df02 |>
     MaxTemp   = `MaximumFlameTemperature(°C)`,
     PostBurnM = `PostBurntMassEstimate(%)`,
     IgnTime   = `TimeToFlaming(s)`
-  )
+  )         #i see new columns we created not replaced
 
 
 #COMBUSTIBILITY full model
@@ -276,7 +272,6 @@ dat_MaxTemp <- Shared_spp_df02 %>%
   ) %>%
   tidyr::drop_na() %>%          # <- ensures all submodels use the same rows
   mutate(
-    branch_order = as.factor(branch_order),
     pubescence   = as.factor(pubescence),
     species_name = droplevels(as.factor(species_name))
   )
@@ -292,7 +287,7 @@ MaxTemp_ml <- lmer(
     leaf_fresh_wgt_g + leaf_dry_wgt_g + twig_fresh_g + twig_dry_g +
     lma + fwc + succulence + ldmc + lwr + twig_fwc +
     (1 | species_name),
-  data = dat_MAxTemp,
+  data = dat_MaxTemp,
   REML = FALSE
 )
 
@@ -300,7 +295,8 @@ MaxTemp_ml <- lmer(
 sel_MaxTemp <- step(MaxTemp_ml)
 sel_MaxTemp                # step table
 
-###selected MTmodel refit again
+###selected MT model refit again
+###visualize preferred model. ggplot? 
 new_MaxTemp_m <- lmer(MaxTemp ~ 
                    FMC_proportion + (1 | species_name), 
                  data = Shared_spp_df02, 
@@ -310,6 +306,17 @@ new_MaxTemp_m <- lmer(MaxTemp ~
 summary(new_MaxTemp_m)
 
 r.squaredGLMM(new_MaxTemp_m)
+
+#
+##
+###visualize 
+ggplot(Shared_spp_df02, aes(x = FMC_proportion, y = MaxTemp)) +
+  geom_point(alpha = 0.4) +
+  geom_smooth(method = "lm", formula = y ~ x, se = TRUE, color = "blue") +
+  labs(title = "Combustibility ~ FMC proportion",
+       x = "FMC proportion",
+       y = "Max Temperature (°C)")
+
 
 #CONSUMABILITY full model
 ##
@@ -350,7 +357,6 @@ dat_PostBurnM <- Shared_spp_df02 %>%
   ) %>%
   tidyr::drop_na() %>%          # <- ensures all submodels use the same rows
   mutate(
-    branch_order = as.factor(branch_order),
     pubescence   = as.factor(pubescence),
     species_name = droplevels(as.factor(species_name))
   )
@@ -376,8 +382,7 @@ sel_PostBurnM                 # step table
 
 
 #
-new_PostBurnM_m <- lmer(PostBurnM  ~ 
-                             FMC_proportion + (1 | species_name), 
+new_PostBurnM_m <- lmer(PostBurnM  ~ (1 | species_name), 
                            data = Shared_spp_df02, 
                            REML = FALSE
 )
@@ -385,6 +390,15 @@ new_PostBurnM_m <- lmer(PostBurnM  ~
 summary(new_PostBurnM_m)
 
 r.squaredGLMM(new_PostBurnM_m)
+
+#
+##
+###visualize 
+ggplot(Shared_spp_df02, aes(x = species_name, y = PostBurnM)) +
+  geom_boxplot() +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1)) +
+  labs(title = "Post-burn mass by species",
+       x = "Species", y = "Post-burn Mass (%)")
 
 #IGNITABILITY full model  
 ##
@@ -425,7 +439,6 @@ dat_IgnTime <- Shared_spp_df02 %>%
   ) %>%
   tidyr::drop_na() %>%          # <- ensures all submodels use the same rows
   mutate(
-    branch_order = as.factor(branch_order),
     pubescence   = as.factor(pubescence),
     species_name = droplevels(as.factor(species_name))
   )
@@ -460,13 +473,22 @@ summary(new_IgnTime_m)
 
 r.squaredGLMM(new_IgnTime_m)
 
+#
+##
+###
+ggplot(Shared_spp_df02, aes(x = FMC_proportion, y = IgnTime)) +
+  geom_point(alpha = 0.4) +
+  geom_smooth(method = "lm", formula = y ~ x, se = TRUE, color = "blue") +
+  labs(title = "Ignitability ~ FMC proportion",
+       x = "FMC proportion",
+       y = "TimeToFlaming")
+
 
 ########################################RQ2
 
 #Is plant flammability better explained by continuous trait variation or by categorical growth form?
 ##Growth-form models
 ###
-
 m_gf_MaxTemp  <- lmer(`MaxTemp` ~ growth_form + (1|species_name), data = Shared_spp_df02, REML = FALSE)
 m_gf_PostBurnM <- lmer(`PostBurnM` ~ growth_form + (1|species_name), data = Shared_spp_df02, REML = FALSE)
 m_gf_IgnTime  <- lmer(`IgnTime` ~ growth_form + (1|species_name), data = Shared_spp_df02, REML = FALSE)
