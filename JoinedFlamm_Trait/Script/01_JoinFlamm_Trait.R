@@ -76,11 +76,11 @@ Fieldtrait_shared <- Fieldtrait %>% filter(scientific_name_WFO %in% shared_speci
 ##
 ###join the two dfs by shared species
 
-Shared_spp_01 <- Flamm %>%
+Shared_spp_df01 <- Flamm %>%
   left_join(Fieldtrait,
             by = c("Accepted_name" = "scientific_name_WFO"))   #not having replicate causes problems..
 
-colnames(Shared_spp_01)
+colnames(Shared_spp_df01)
 
 
 ###now to join Labtrait data to this shared_spp_01 df and create a new Shared_spp_02
@@ -104,18 +104,18 @@ colnames(Labtrait)
 ##
 #see shared species with Shared_spp_01 df
 
-shared_species02 <- intersect(unique(Shared_spp_01$Accepted_name), unique(Labtrait$scientific_name_WFO))
+shared_species02 <- intersect(unique(Shared_spp_df01$Accepted_name), unique(Labtrait$scientific_name_WFO))
 print(shared_species02)  #Same species n=33
 
 #
 ##
 ###join by species to create a new df
 
-Shared_spp_df <- Shared_spp_01 %>%
+Shared_spp_df02 <- Shared_spp_df01 %>%
   left_join(Labtrait,
             by = c("Accepted_name" = "scientific_name_WFO"))
 
-colnames(Shared_spp_df)
+colnames(Shared_spp_df02)
 
 #
 ##
@@ -137,13 +137,13 @@ trait_col <- c(
 
 #
 ##
-sapply(Shared_spp_df[trait_col], class)
+sapply(Shared_spp_df02[trait_col], class)
 
 #
 ##
-###Convert all trait columns to relevant class
+###Convert all trait columns to relevant class - mosty numeric 
 
-Shared_spp_df <- Shared_spp_df %>%
+Shared_spp_df02 <- Shared_spp_df02 %>%
   mutate(across(c(
     height_cm, canopy_axis_2_cm, canopy_area_cm2,
     percent_N, percent_C, C_to_N_ratio, d_15N_14N, d_13C_12C,
@@ -178,7 +178,7 @@ m_ignitability <- lmer(`TimeToFlaming(s)` ~
     twig_fresh_g + twig_dry_g +
     lma + succulence + ldmc +
     (1 | species_name) + (1 | subregion.x), #2 randoms
-  data = Shared_spp_df, REML = TRUE)    #Warning message:Some predictor variables are on very different scales: consider rescaling 
+  data = Shared_spp_df02, REML = TRUE)    #Warning message:Some predictor variables are on very different scales: consider rescaling 
 
 #
 ##
@@ -188,7 +188,7 @@ library(e1071)   # for skewness
 # 
 ##
 ###Time to Flaming
-TT <- Shared_spp_df$`TimeToFlaming(s)`
+TT <- Shared_spp_df02$`TimeToFlaming(s)`
 hist(TT, breaks = 30, main = "Histogram: Time to Flaming", xlab = "Seconds")
 skewness(TT, na.rm = TRUE) 
 qqnorm(TT); qqline(TT)
@@ -196,7 +196,7 @@ qqnorm(TT); qqline(TT)
 #
 ##
 ###Max Temperature
-MT <- Shared_spp_df$`MaximumFlameTemperature(°C)`
+MT <- Shared_spp_df02$`MaximumFlameTemperature(°C)`
 hist(MT, breaks = 30, main = "Histogram: Max Temperature", xlab = "°C")
 skewness(MT, na.rm = TRUE)
 qqnorm(MT); qqline(MT)
@@ -204,7 +204,7 @@ qqnorm(MT); qqline(MT)
 #
 ##
 #### Post Burn Mass
-PBM <- Shared_spp_df$`PostBurntMassEstimate(%)`
+PBM <- Shared_spp_df02$`PostBurntMassEstimate(%)`
 hist(PBM, breaks = 30, main = "Histogram: Post Burn Mass", xlab = "%")
 skewness(PBM, na.rm = TRUE)
 qqnorm(PBM); qqline(PBM)
@@ -238,7 +238,7 @@ mass_traits <- c(
 #
 ##
 ###scale() only numeric traits 
-Shared_spp_df <- Shared_spp_df %>%
+Shared_spp_df02 <- Shared_spp_df02 %>%
   mutate(across(where(is.numeric) & all_of(trait_col), ~ as.numeric(scale(.))))
 
 #
@@ -256,7 +256,7 @@ m_ignitability <- lmer(
     twig_fresh_g + twig_dry_g + lma + fwc + 
     succulence + ldmc + lwr + twig_fwc +
     (1 | species_name),
-  data = Shared_spp_df,
+  data = Shared_spp_df02,
   REML = FALSE
 )
 summary(m_ignitability)
@@ -279,7 +279,7 @@ m_combustibility <- lmer(
     twig_fresh_g + twig_dry_g + lma + fwc + 
     succulence + ldmc + lwr + twig_fwc +
     (1 | species_name),
-  data = Shared_spp_df,
+  data = Shared_spp_df02,
   REML = FALSE
 )
 summary(m_combustibility)
@@ -302,7 +302,7 @@ m_consumability <- lmer(
     twig_fresh_g + twig_dry_g + lma + fwc + 
     succulence + ldmc + lwr + twig_fwc +
     (1 | species_name),
-  data = Shared_spp_df,
+  data = Shared_spp_df02,
   REML = FALSE
 )
 summary(m_consumability)
@@ -315,9 +315,14 @@ vif(m_consumability)
 #
 ##
 ###Growth-form models
-m_gf_TT  <- lmer(`TimeToFlaming(s)` ~ growth_form + (1|species_name), data = Shared_spp_df, REML = FALSE)
-m_gf_MT  <- lmer(`MaximumFlameTemperature(°C)` ~ growth_form + (1|species_name), data = Shared_spp_df, REML = FALSE)
-m_gf_PBM <- lmer(`PostBurntMassEstimate(%)` ~ growth_form + (1|species_name), data = Shared_spp_df, REML = FALSE)
+m_gf_TT  <- lmer(`TimeToFlaming(s)` ~ growth_form + (1|species_name), data = Shared_spp_df02, REML = FALSE)
+m_gf_MT  <- lmer(`MaximumFlameTemperature(°C)` ~ growth_form + (1|species_name), data = Shared_spp_df02, REML = FALSE)
+m_gf_PBM <- lmer(`PostBurntMassEstimate(%)` ~ growth_form + (1|species_name), data = Shared_spp_df02, REML = FALSE)
+
+#
+summary(m_gf_TT)
+summary(m_gf_MT)
+summary(m_gf_PBM)
 
 # R^2 (marginal = fixed effects; conditional = fixed + random)
 r.squaredGLMM(m_gf_TT)
