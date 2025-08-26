@@ -17,10 +17,8 @@ library(lmerTest)
 Flamm <- read_excel("Data/CombinedOG.xlsx")
 
 #
-##
-###henry field trait data
-###Fieldtrait <- read_excel("Data/Field_Traits_Final.xlsx")
-Fieldtrait <- read.csv("Data/Field_Traits_Final.csv") #oki
+####henry field trait data
+Fieldtrait <- read.csv("Data/Field_Traits_Final.csv") 
 
 #
 ##
@@ -47,7 +45,6 @@ colnames(Flamm)
 unique(Flamm$Accepted_name) #53 species 
 
 #
-##
 ###Unique species from field leaf traits
 unique(Fieldtrait$scientific_name_WFO)  #1000+ species 
 
@@ -169,20 +166,13 @@ flamm_col <- c(
 ###skewness test to determine is transformation is needed or not for my responses
 library(e1071)   # for skewness
 
-# 
-##Time to Flaming
-###
-TT <- Shared_spp_df02$`TimeToFlaming(s)`
-hist(TT, breaks = 30, main = "Histogram: Time to Flaming", xlab = "Seconds")
-skewness(TT, na.rm = TRUE) 
-qqnorm(TT); qqline(TT)
 
 #
 ##Max Temperature
 ###
 MT <- Shared_spp_df02$`MaximumFlameTemperature(°C)`
 hist(MT, breaks = 30, main = "Histogram: Max Temperature", xlab = "°C")
-skewness(MT, na.rm = TRUE)
+skewness(MT, na.rm = TRUE)  #check residuals
 qqnorm(MT); qqline(MT)
 
 #
@@ -192,6 +182,14 @@ PBM <- Shared_spp_df02$`PostBurntMassEstimate(%)`
 hist(PBM, breaks = 30, main = "Histogram: Post Burn Mass", xlab = "%")
 skewness(PBM, na.rm = TRUE)
 qqnorm(PBM); qqline(PBM)      #no transformation needed for any response variable 
+
+# 
+##Time to Flaming
+###
+TT <- Shared_spp_df02$`TimeToFlaming(s)`
+hist(TT, breaks = 30, main = "Histogram: Time to Flaming", xlab = "Seconds")
+skewness(TT, na.rm = TRUE) 
+qqnorm(TT); qqline(TT)
 
 #
 ##Traits grouped
@@ -237,7 +235,7 @@ Shared_spp_df02 <- Shared_spp_df02 |>
 ##
 ###
 m_MaxTemp <- lmer(
-  `MaxTemp` ~ 
+  log(MaxTemp) ~ 
     height_cm + canopy_axis_1_cm + canopy_axis_2_cm +
     canopy_area_cm2 + branch_order + pubescence + percent_N +
     percent_C + C_to_N_ratio + d_15N_14N + d_13C_12C +
@@ -251,10 +249,16 @@ m_MaxTemp <- lmer(
   REML = FALSE
 )
 summary(m_MaxTemp)
-
 r.squaredGLMM(m_MaxTemp)
-
 vif(m_MaxTemp)
+
+#
+##
+###QQ plot of residuals (normality assumption)
+qqnorm(resid(m_MaxTemp)); qqline(resid(m_MaxTemp))
+
+# Residuals vs fitted (homoscedasticity assumption)
+plot(m_MaxTemp)   #seems maxtemp must be log transformed 
 
 #
 ##COMBUSTIBILITY selection
@@ -278,7 +282,7 @@ dat_MaxTemp <- Shared_spp_df02 %>%
 
 #
 MaxTemp_ml <- lmer(
-  MaxTemp ~ 
+  log (MaxTemp) ~ 
     height_cm + canopy_axis_1_cm + canopy_axis_2_cm + canopy_area_cm2 +
     branch_order + pubescence +
     percent_N + percent_C + C_to_N_ratio + d_15N_14N + d_13C_12C +
@@ -297,7 +301,7 @@ sel_MaxTemp                # step table
 
 ###selected MT model refit again
 ###visualize preferred model. ggplot? 
-new_MaxTemp_m <- lmer(MaxTemp ~ 
+new_MaxTemp_m <- lmer(log(MaxTemp) ~ 
                    FMC_proportion + (1 | species_name), 
                  data = Shared_spp_df02, 
                  REML = FALSE
@@ -310,7 +314,7 @@ r.squaredGLMM(new_MaxTemp_m)
 #
 ##
 ###visualize 
-ggplot(Shared_spp_df02, aes(x = FMC_proportion, y = MaxTemp)) +
+ggplot(Shared_spp_df02, aes(x = FMC_proportion, y = log(MaxTemp))) +
   geom_point(alpha = 0.4) +
   geom_smooth(method = "lm", formula = y ~ x, se = TRUE, color = "blue") +
   labs(title = "Combustibility ~ FMC proportion",
@@ -340,6 +344,14 @@ summary(m_PostBurnM)
 r.squaredGLMM(m_PostBurnM)
 
 vif(m_PostBurnM)
+
+#
+##
+###QQ plot of residuals (normality assumption)
+qqnorm(resid(m_PostBurnM)); qqline(resid(m_PostBurnM))
+
+# Residuals vs fitted (homoscedasticity assumption)
+plot(m_PostBurnM)   #maybe no transformation yet
 
 #
 ##CONSUMABILITY selection
@@ -404,7 +416,7 @@ ggplot(Shared_spp_df02, aes(x = species_name, y = PostBurnM)) +
 ##
 ###
 m_IgnTime <- lmer(
-  `IgnTime` ~ 
+  log(IgnTime) ~ 
     height_cm + canopy_axis_1_cm + canopy_axis_2_cm +
     canopy_area_cm2 + branch_order + pubescence + percent_N +
     percent_C + C_to_N_ratio + d_15N_14N + d_13C_12C +
@@ -422,6 +434,14 @@ summary(m_IgnTime)
 r.squaredGLMM(m_IgnTime)
 
 vif(m_IgnTime)
+
+#
+##
+###QQ plot of residuals (normality assumption)
+qqnorm(resid(m_IgnTime)); qqline(resid(m_IgnTime))
+
+# Residuals vs fitted (homoscedasticity assumption)
+plot(m_IgnTime)   
 
 #
 ##IGNITABILITY selection
@@ -445,7 +465,7 @@ dat_IgnTime <- Shared_spp_df02 %>%
 
 #
 IgnTime_ml <- lmer(
-  IgnTime ~ 
+  log(IgnTime) ~ 
     height_cm + canopy_axis_1_cm + canopy_axis_2_cm + canopy_area_cm2 +
     branch_order + pubescence +
     percent_N + percent_C + C_to_N_ratio + d_15N_14N + d_13C_12C +
@@ -463,7 +483,7 @@ sel_IgnTime <- step(IgnTime_ml)
 sel_IgnTime               # step table
 
 #
-new_IgnTime_m <- lmer(IgnTime ~ 
+new_IgnTime_m <- lmer(log(IgnTime) ~ 
                              FMC_proportion + (1 | species_name), 
                            data = Shared_spp_df02, 
                            REML = FALSE
