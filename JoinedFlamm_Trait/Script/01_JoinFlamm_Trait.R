@@ -325,4 +325,8 @@ r.squaredGLMM(m_gf_TT)
 r.squaredGLMM(m_gf_MT)
 r.squaredGLMM(m_gf_PBM)
 
+<<<<<<< HEAD
 ########################
+=======
+
+>>>>>>> 1993faec244a5d6750d2d6a90e617c13ed8162bb
