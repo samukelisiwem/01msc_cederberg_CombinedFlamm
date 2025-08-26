@@ -169,16 +169,16 @@ flamm_col <- c(
 ###linear mixed-effects models with species as random effects 
 ###adding subregion as second randoms complicates model
 
-m_ignitability <- lmer(`TimeToFlaming(s)` ~
-    `FMC(%)` + branch_order + percent_N + percent_C + C_to_N_ratio +
-    d_15N_14N + d_13C_12C +
-    leaf_area_cm2 + leaf_length_cm + avg_leaf_width_cm +
-    leaf_thickness_mm +
-    leaf_fresh_wgt_g + leaf_dry_wgt_g +
-    twig_fresh_g + twig_dry_g +
-    lma + succulence + ldmc +
-    (1 | species_name) + (1 | subregion.x), #2 randoms
-  data = Shared_spp_df02, REML = TRUE)    #Warning message:Some predictor variables are on very different scales: consider rescaling 
+#m_ignitability <- lmer(`TimeToFlaming(s)` ~
+#    `FMC(%)` + branch_order + percent_N + percent_C + C_to_N_ratio +
+#    d_15N_14N + d_13C_12C +
+#    leaf_area_cm2 + leaf_length_cm + avg_leaf_width_cm +
+#    leaf_thickness_mm +
+#    leaf_fresh_wgt_g + leaf_dry_wgt_g +
+#   twig_fresh_g + twig_dry_g +
+#    lma + succulence + ldmc +
+#    (1 | species_name) + (1 | subregion.x), #2 randoms
+#  data = Shared_spp_df02, REML = TRUE)    #Warning message:Some predictor variables are on very different scales: consider rescaling 
 
 #
 ##
@@ -264,7 +264,7 @@ summary(m_ignitability)
 r.squaredGLMM(m_ignitability)
 
 vif(m_ignitability)
- 
+
 #
 ##
 ###
@@ -328,6 +328,79 @@ summary(m_gf_PBM)
 r.squaredGLMM(m_gf_TT)
 r.squaredGLMM(m_gf_MT)
 r.squaredGLMM(m_gf_PBM)
+
+#
+##
+###trying to see which traits are most influential 
+###alias columns for your responses (avoid % and () in names)
+
+Shared_spp_df02 <- Shared_spp_df02 |>
+  dplyr::mutate(
+    IgnTime   = `TimeToFlaming(s)`,
+    MaxTemp   = `MaximumFlameTemperature(°C)`,
+    PostBurnP = `PostBurntMassEstimate(%)`
+  )
+
+#
+##
+###
+library(lmerTest)
+
+dat_ign <- Shared_spp_df02 %>%
+  select(
+    IgnTime, species_name,
+    height_cm, canopy_axis_1_cm, canopy_axis_2_cm, canopy_area_cm2,
+    branch_order, pubescence,
+    percent_N, percent_C, C_to_N_ratio, d_15N_14N, d_13C_12C,
+    FMC_proportion, num_leaves, leaf_area_cm2, leaf_length_cm,
+    avg_leaf_width_cm, max_leaf_width_cm, leaf_thickness_mm,
+    leaf_fresh_wgt_g, leaf_dry_wgt_g, twig_fresh_g, twig_dry_g,
+    lma, fwc, succulence, ldmc, lwr, twig_fwc
+  ) %>%
+  tidyr::drop_na() %>%          # <- ensures all submodels use the same rows
+  mutate(
+    branch_order = as.factor(branch_order),
+    pubescence   = as.factor(pubescence),
+    species_name = droplevels(as.factor(species_name))
+  )
+
+#
+##
+###
+IgnTime_ml <- lmer(
+  IgnTime ~ 
+    height_cm + canopy_axis_1_cm + canopy_axis_2_cm + canopy_area_cm2 +
+    branch_order + pubescence +
+    percent_N + percent_C + C_to_N_ratio + d_15N_14N + d_13C_12C +
+    FMC_proportion + num_leaves + leaf_area_cm2 + leaf_length_cm +
+    avg_leaf_width_cm + max_leaf_width_cm + leaf_thickness_mm +
+    leaf_fresh_wgt_g + leaf_dry_wgt_g + twig_fresh_g + twig_dry_g +
+    lma + fwc + succulence + ldmc + lwr + twig_fwc +
+    (1 | species_name),
+  data = dat_ign,
+  REML = FALSE
+)
+
+#
+##
+###
+sel_ign <- step(IgnTime_ml)
+sel_ign                 # step table
+
+
+#
+##
+###
+
+new_Ignitability_m <- lmer(IgnTime ~ 
+          FMC_proportion + (1 | species_name), 
+          data = Shared_spp_df02, 
+          REML = FALSE
+)
+
+summary(new_Ignitability_m)
+
+r.squaredGLMM(new_Ignitability_m)
 
 
 #########################################xxxxx#################
