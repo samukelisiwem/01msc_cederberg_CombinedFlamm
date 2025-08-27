@@ -99,9 +99,12 @@ print(shared_species02)  #Same species n=33
 ###join by species to create a new df
 Shared_spp_df02 <- Shared_spp_df01 %>%
   left_join(Labtrait,
-            by = c("Accepted_name" = "scientific_name_WFO"))
+            by = c("Accepted_name" = "scientific_name_WFO")) %>%
+  filter(Accepted_name %in% shared_species02)
 
 colnames(Shared_spp_df02)
+
+length(unique(Shared_spp_df02$species_name))
 
 #28 leaf traits 
 
@@ -123,16 +126,13 @@ sapply(Shared_spp_df02[trait_col], class)
 
 #
 ##
-###Convert all trait columns to relevant class - mostly numeric 
+###Convert all trait columns to relevant class 
 Shared_spp_df02 <- Shared_spp_df02 %>%
-  mutate(across(c(
-    height_cm, canopy_axis_2_cm, canopy_area_cm2,
-    percent_N, percent_C, C_to_N_ratio, d_15N_14N, d_13C_12C,
-    num_leaves, leaf_area_cm2, leaf_length_cm, avg_leaf_width_cm, max_leaf_width_cm,
-    leaf_thickness_mm, leaf_fresh_wgt_g, leaf_dry_wgt_g,
-    twig_fresh_g, twig_dry_g, lma, fwc, succulence, ldmc, lwr, twig_fwc
-  ), parse_number)) %>%
-  mutate(pubescence = as.factor(pubescence))  #re-run sapply above
+  mutate(
+    pubescence   = as.factor(pubescence),
+    num_leaves   = readr::parse_number(as.character(num_leaves)),
+    branch_order = as.numeric(branch_order)   # force numeric
+  )          #re-run sapply above
 
 #
 ##
@@ -166,7 +166,6 @@ flamm_col <- c(
 ###skewness test to determine is transformation is needed or not for my responses
 library(e1071)   # for skewness
 
-
 #
 ##Max Temperature
 ###
@@ -181,15 +180,19 @@ qqnorm(MT); qqline(MT)
 PBM <- Shared_spp_df02$`PostBurntMassEstimate(%)`
 hist(PBM, breaks = 30, main = "Histogram: Post Burn Mass", xlab = "%")
 skewness(PBM, na.rm = TRUE)
-qqnorm(PBM); qqline(PBM)      #no transformation needed for any response variable 
+qqnorm(PBM); qqline(PBM)       
 
 # 
 ##Time to Flaming
 ###
 TT <- Shared_spp_df02$`TimeToFlaming(s)`
 hist(TT, breaks = 30, main = "Histogram: Time to Flaming", xlab = "Seconds")
-skewness(TT, na.rm = TRUE) 
+skewness(TT, na.rm = TRUE) #no transformation needed for any response variable
 qqnorm(TT); qqline(TT)
+
+#
+##the above cool for noting but...
+###base response transformation on model residuals
 
 #
 ##Traits grouped
@@ -215,10 +218,20 @@ mass_traits <- c(
 )
 
 #
-##scale() only numeric traits for the following steps 
+##scale() traits for the following steps 
 ###
 Shared_spp_df02 <- Shared_spp_df02 %>%
-  mutate(across(where(is.numeric) & all_of(trait_col), ~ as.numeric(scale(.))))
+  mutate(across(all_of(trait_col), 
+                ~ if (is.numeric(.)) as.numeric(scale(.)) else .))
+
+#
+##
+###check if trait were scaled 
+sapply(Shared_spp_df02[trait_col], function(x) {
+  if (is.numeric(x)) c(mean = mean(x, na.rm = TRUE),
+                       sd   = sd(x, na.rm = TRUE))
+  else NA
+})
 
 #
 ##
@@ -230,35 +243,39 @@ Shared_spp_df02 <- Shared_spp_df02 |>
     IgnTime   = `TimeToFlaming(s)`
   )         #i see new columns we created not replaced
 
-
 #COMBUSTIBILITY full model
 ##
 ###
 m_MaxTemp <- lmer(
-  log(MaxTemp) ~ 
+    MaxTemp ~ 
     height_cm + canopy_axis_1_cm + canopy_axis_2_cm +
     canopy_area_cm2 + branch_order + pubescence + percent_N +
     percent_C + C_to_N_ratio + d_15N_14N + d_13C_12C +
     FMC_proportion + num_leaves + leaf_area_cm2 + 
     leaf_length_cm + avg_leaf_width_cm + max_leaf_width_cm + 
     leaf_thickness_mm + leaf_fresh_wgt_g + leaf_dry_wgt_g + 
-    twig_fresh_g + twig_dry_g + lma + fwc + 
+    lma + fwc +    #removed the twiggy traits
     succulence + ldmc + lwr + twig_fwc +
     (1 | species_name),
   data = Shared_spp_df02,
   REML = FALSE
 )
 summary(m_MaxTemp)
+
 r.squaredGLMM(m_MaxTemp)
+
+###QQ plot of residuals (normality assumption)
+qqnorm(resid(m_MaxTemp)); qqline(resid(m_MaxTemp))   #kinda leans with the line 
+
+####Residuals vs fitted (homoscedasticity assumption)
+plot(m_MaxTemp)       #maxtemp maybe log transformed ??
+
+##multicollinearity
+###check for VIF > 5 High multicollinearity. 
+#twigs fresh and dry removed = reduced 
 vif(m_MaxTemp)
 
-#
-##
-###QQ plot of residuals (normality assumption)
-qqnorm(resid(m_MaxTemp)); qqline(resid(m_MaxTemp))
-
-# Residuals vs fitted (homoscedasticity assumption)
-plot(m_MaxTemp)   #seems maxtemp must be log transformed 
+#leaf weights are a bit problematic
 
 #
 ##COMBUSTIBILITY selection
@@ -271,7 +288,7 @@ dat_MaxTemp <- Shared_spp_df02 %>%
     percent_N, percent_C, C_to_N_ratio, d_15N_14N, d_13C_12C,
     FMC_proportion, num_leaves, leaf_area_cm2, leaf_length_cm,
     avg_leaf_width_cm, max_leaf_width_cm, leaf_thickness_mm,
-    leaf_fresh_wgt_g, leaf_dry_wgt_g, twig_fresh_g, twig_dry_g,
+    leaf_fresh_wgt_g, leaf_dry_wgt_g, 
     lma, fwc, succulence, ldmc, lwr, twig_fwc
   ) %>%
   tidyr::drop_na() %>%          # <- ensures all submodels use the same rows
@@ -282,13 +299,13 @@ dat_MaxTemp <- Shared_spp_df02 %>%
 
 #
 MaxTemp_ml <- lmer(
-  log (MaxTemp) ~ 
+    MaxTemp ~ 
     height_cm + canopy_axis_1_cm + canopy_axis_2_cm + canopy_area_cm2 +
     branch_order + pubescence +
     percent_N + percent_C + C_to_N_ratio + d_15N_14N + d_13C_12C +
     FMC_proportion + num_leaves + leaf_area_cm2 + leaf_length_cm +
     avg_leaf_width_cm + max_leaf_width_cm + leaf_thickness_mm +
-    leaf_fresh_wgt_g + leaf_dry_wgt_g + twig_fresh_g + twig_dry_g +
+    leaf_fresh_wgt_g + leaf_dry_wgt_g + 
     lma + fwc + succulence + ldmc + lwr + twig_fwc +
     (1 | species_name),
   data = dat_MaxTemp,
@@ -301,7 +318,7 @@ sel_MaxTemp                # step table
 
 ###selected MT model refit again
 ###visualize preferred model. ggplot? 
-new_MaxTemp_m <- lmer(log(MaxTemp) ~ 
+new_MaxTemp_m <- lmer(MaxTemp ~ 
                    FMC_proportion + (1 | species_name), 
                  data = Shared_spp_df02, 
                  REML = FALSE
@@ -314,7 +331,7 @@ r.squaredGLMM(new_MaxTemp_m)
 #
 ##
 ###visualize 
-ggplot(Shared_spp_df02, aes(x = FMC_proportion, y = log(MaxTemp))) +
+ggplot(Shared_spp_df02, aes(x = FMC_proportion, y = MaxTemp)) +
   geom_point(alpha = 0.4) +
   geom_smooth(method = "lm", formula = y ~ x, se = TRUE, color = "blue") +
   labs(title = "Combustibility ~ FMC proportion",
@@ -333,7 +350,7 @@ m_PostBurnM <- lmer(
     FMC_proportion + num_leaves + leaf_area_cm2 + 
     leaf_length_cm + avg_leaf_width_cm + max_leaf_width_cm + 
     leaf_thickness_mm + leaf_fresh_wgt_g + leaf_dry_wgt_g + 
-    twig_fresh_g + twig_dry_g + lma + fwc + 
+    lma + fwc + 
     succulence + ldmc + lwr + twig_fwc +
     (1 | species_name),
   data = Shared_spp_df02,
@@ -343,8 +360,6 @@ summary(m_PostBurnM)
 
 r.squaredGLMM(m_PostBurnM)
 
-vif(m_PostBurnM)
-
 #
 ##
 ###QQ plot of residuals (normality assumption)
@@ -353,6 +368,9 @@ qqnorm(resid(m_PostBurnM)); qqline(resid(m_PostBurnM))
 # Residuals vs fitted (homoscedasticity assumption)
 plot(m_PostBurnM)   #maybe no transformation yet
 
+#
+vif(m_PostBurnM)    #remove twigs fresh and dry
+            
 #
 ##CONSUMABILITY selection
 ###
@@ -364,7 +382,7 @@ dat_PostBurnM <- Shared_spp_df02 %>%
     percent_N, percent_C, C_to_N_ratio, d_15N_14N, d_13C_12C,
     FMC_proportion, num_leaves, leaf_area_cm2, leaf_length_cm,
     avg_leaf_width_cm, max_leaf_width_cm, leaf_thickness_mm,
-    leaf_fresh_wgt_g, leaf_dry_wgt_g, twig_fresh_g, twig_dry_g,
+    leaf_fresh_wgt_g, leaf_dry_wgt_g,
     lma, fwc, succulence, ldmc, lwr, twig_fwc
   ) %>%
   tidyr::drop_na() %>%          # <- ensures all submodels use the same rows
@@ -381,7 +399,7 @@ PostBurnM_ml <- lmer(
     percent_N + percent_C + C_to_N_ratio + d_15N_14N + d_13C_12C +
     FMC_proportion + num_leaves + leaf_area_cm2 + leaf_length_cm +
     avg_leaf_width_cm + max_leaf_width_cm + leaf_thickness_mm +
-    leaf_fresh_wgt_g + leaf_dry_wgt_g + twig_fresh_g + twig_dry_g +
+    leaf_fresh_wgt_g + leaf_dry_wgt_g + 
     lma + fwc + succulence + ldmc + lwr + twig_fwc +
     (1 | species_name),
   data = dat_PostBurnM,
@@ -391,7 +409,6 @@ PostBurnM_ml <- lmer(
 #
 sel_PostBurnM <- step(PostBurnM_ml)
 sel_PostBurnM                 # step table
-
 
 #
 new_PostBurnM_m <- lmer(PostBurnM  ~ (1 | species_name), 
@@ -406,24 +423,27 @@ r.squaredGLMM(new_PostBurnM_m)
 #
 ##
 ###visualize 
-ggplot(Shared_spp_df02, aes(x = species_name, y = PostBurnM)) +
+Shared_spp_df02 %>%
+  mutate(species_name = reorder(species_name, PostBurnM, FUN = median, na.rm = TRUE)) %>%
+  ggplot(aes(x = species_name, y = PostBurnM, fill = growth_form)) +
   geom_boxplot() +
-  theme(axis.text.x = element_text(angle = 90, hjust = 1)) +
-  labs(title = "Post-burn mass by species",
-       x = "Species", y = "Post-burn Mass (%)")
+  labs(title = "Consumability ~ species",
+       x = "Species", y = "Post-burn Mass (%)",
+       fill = "Growth form") +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1))
 
 #IGNITABILITY full model  
 ##
 ###
 m_IgnTime <- lmer(
-  log(IgnTime) ~ 
+    IgnTime ~ 
     height_cm + canopy_axis_1_cm + canopy_axis_2_cm +
     canopy_area_cm2 + branch_order + pubescence + percent_N +
     percent_C + C_to_N_ratio + d_15N_14N + d_13C_12C +
     FMC_proportion + num_leaves + leaf_area_cm2 + 
     leaf_length_cm + avg_leaf_width_cm + max_leaf_width_cm + 
     leaf_thickness_mm + leaf_fresh_wgt_g + leaf_dry_wgt_g + 
-    twig_fresh_g + twig_dry_g + lma + fwc + 
+    lma + fwc + 
     succulence + ldmc + lwr + twig_fwc +
     (1 | species_name),
   data = Shared_spp_df02,
@@ -433,8 +453,6 @@ summary(m_IgnTime)
 
 r.squaredGLMM(m_IgnTime)
 
-vif(m_IgnTime)
-
 #
 ##
 ###QQ plot of residuals (normality assumption)
@@ -442,6 +460,9 @@ qqnorm(resid(m_IgnTime)); qqline(resid(m_IgnTime))
 
 # Residuals vs fitted (homoscedasticity assumption)
 plot(m_IgnTime)   
+
+###
+vif(m_IgnTime)  #remove twigs fresh and dry
 
 #
 ##IGNITABILITY selection
@@ -454,7 +475,7 @@ dat_IgnTime <- Shared_spp_df02 %>%
     percent_N, percent_C, C_to_N_ratio, d_15N_14N, d_13C_12C,
     FMC_proportion, num_leaves, leaf_area_cm2, leaf_length_cm,
     avg_leaf_width_cm, max_leaf_width_cm, leaf_thickness_mm,
-    leaf_fresh_wgt_g, leaf_dry_wgt_g, twig_fresh_g, twig_dry_g,
+    leaf_fresh_wgt_g, leaf_dry_wgt_g, 
     lma, fwc, succulence, ldmc, lwr, twig_fwc
   ) %>%
   tidyr::drop_na() %>%          # <- ensures all submodels use the same rows
@@ -465,13 +486,13 @@ dat_IgnTime <- Shared_spp_df02 %>%
 
 #
 IgnTime_ml <- lmer(
-  log(IgnTime) ~ 
+    IgnTime ~ 
     height_cm + canopy_axis_1_cm + canopy_axis_2_cm + canopy_area_cm2 +
     branch_order + pubescence +
     percent_N + percent_C + C_to_N_ratio + d_15N_14N + d_13C_12C +
     FMC_proportion + num_leaves + leaf_area_cm2 + leaf_length_cm +
     avg_leaf_width_cm + max_leaf_width_cm + leaf_thickness_mm +
-    leaf_fresh_wgt_g + leaf_dry_wgt_g + twig_fresh_g + twig_dry_g +
+    leaf_fresh_wgt_g + leaf_dry_wgt_g + 
     lma + fwc + succulence + ldmc + lwr + twig_fwc +
     (1 | species_name),
   data = dat_IgnTime,
@@ -483,7 +504,7 @@ sel_IgnTime <- step(IgnTime_ml)
 sel_IgnTime               # step table
 
 #
-new_IgnTime_m <- lmer(log(IgnTime) ~ 
+new_IgnTime_m <- lmer(IgnTime ~ 
                              FMC_proportion + (1 | species_name), 
                            data = Shared_spp_df02, 
                            REML = FALSE
@@ -501,7 +522,8 @@ ggplot(Shared_spp_df02, aes(x = FMC_proportion, y = IgnTime)) +
   geom_smooth(method = "lm", formula = y ~ x, se = TRUE, color = "blue") +
   labs(title = "Ignitability ~ FMC proportion",
        x = "FMC proportion",
-       y = "TimeToFlaming")
+       y = "TimeToFlaming") + 
+  ylim(0, 120)
 
 
 ########################################RQ2
@@ -509,20 +531,23 @@ ggplot(Shared_spp_df02, aes(x = FMC_proportion, y = IgnTime)) +
 #Is plant flammability better explained by continuous trait variation or by categorical growth form?
 ##Growth-form models
 ###
-m_gf_MaxTemp  <- lmer(`MaxTemp` ~ growth_form + (1|species_name), data = Shared_spp_df02, REML = FALSE)
-m_gf_PostBurnM <- lmer(`PostBurnM` ~ growth_form + (1|species_name), data = Shared_spp_df02, REML = FALSE)
-m_gf_IgnTime  <- lmer(`IgnTime` ~ growth_form + (1|species_name), data = Shared_spp_df02, REML = FALSE)
+gf_MaxTemp  <- lmer(`MaxTemp` ~ growth_form + (1|species_name), data = Shared_spp_df02, REML = FALSE)
+gf_PostBurnM <- lmer(`PostBurnM` ~ growth_form + (1|species_name), data = Shared_spp_df02, REML = FALSE)
+gf_IgnTime  <- lmer(`IgnTime` ~ growth_form + (1|species_name), data = Shared_spp_df02, REML = FALSE)
 
 #
-summary(m_gf_MaxTemp)
-summary(m_gf_PostBurnM)
-summary(m_gf_IgnTime)
+summary(gf_MaxTemp)
+summary(gf_PostBurnM)
+summary(gf_IgnTime)
 
 # R^2 (marginal = fixed effects; conditional = fixed + random)
-r.squaredGLMM(m_gf_MaxTemp)
-r.squaredGLMM(m_gf_PostBurnM)
-r.squaredGLMM(m_gf_IgnTime)
+r.squaredGLMM(gf_MaxTemp)
+r.squaredGLMM(gf_PostBurnM)
+r.squaredGLMM(gf_IgnTime)
 
+
+length(unique(Shared_spp_df02$species_name))   # how many unique species
+unique(Shared_spp_df02$species_name)           # list them
 
 #########################################xxxxx#################
 <<<<<<< HEAD
