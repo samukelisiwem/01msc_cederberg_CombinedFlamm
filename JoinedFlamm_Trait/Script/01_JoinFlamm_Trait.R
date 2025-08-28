@@ -16,12 +16,9 @@ library(lmerTest)
 ###cederberg and george data combined 
 Flamm <- read_excel("Data/CombinedOG.xlsx")
 
-#
 ####henry field trait data
 Fieldtrait <- read.csv("Data/Field_Traits_Final.csv") 
 
-#
-##
 ###making lowercase and trimming spaces in species names 
 Flamm <- Flamm %>%
   mutate(Accepted_name = tolower(trimws(Accepted_name)))
@@ -44,7 +41,6 @@ colnames(Flamm)
 ###see Unique species from flammability data
 unique(Flamm$Accepted_name) #53 species 
 
-#
 ###Unique species from field leaf traits
 unique(Fieldtrait$scientific_name_WFO)  #1000+ species 
 
@@ -63,14 +59,18 @@ Flamm_shared <- Flamm %>% filter(Accepted_name %in% shared_species)
 
 Fieldtrait_shared <- Fieldtrait %>% filter(scientific_name_WFO %in% shared_species)
 
-#
-##
+unique(Fieldtrait_shared$scientific_name_WFO)
+
 ###join the two dfs by shared species
-Shared_spp_df01 <- Flamm %>%
-  left_join(Fieldtrait,
-            by = c("Accepted_name" = "scientific_name_WFO"))   #not having replicate causes problems..??
+Shared_spp_df01 <- Flamm_shared %>%
+  left_join(Fieldtrait_shared,
+            by = c("Accepted_name" = "scientific_name_WFO"))  %>%
+  filter(Accepted_name %in% shared_species)   #not having replicate causes problems..??
+
 
 colnames(Shared_spp_df01)
+
+unique(Shared_spp_df01$species_name)
 
 #
 ##Join Labtrait data to this shared_spp_df01 and create a new Shared_spp_02
@@ -80,8 +80,6 @@ colnames(Shared_spp_df01)
 ##Labtrait data
 Labtrait <- read.csv("Data/Lab_Traits_Final.csv")
 
-#
-##
 ###make lower case and spacing
 Labtrait <- Labtrait %>%
   mutate(scientific_name_WFO = tolower(trimws(scientific_name_WFO)))
@@ -94,8 +92,7 @@ colnames(Labtrait)
 shared_species02 <- intersect(unique(Shared_spp_df01$Accepted_name), unique(Labtrait$scientific_name_WFO))
 print(shared_species02)  #Same species n=33
 
-#
-##
+
 ###join by species to create a new df
 Shared_spp_df02 <- Shared_spp_df01 %>%
   left_join(Labtrait,
@@ -119,8 +116,6 @@ trait_col <- c(
   "lma", "fwc", "succulence", "ldmc", "lwr", "twig_fwc"
 )
 
-#
-##
 ###
 sapply(Shared_spp_df02[trait_col], class)
 
@@ -264,16 +259,15 @@ summary(m_MaxTemp)
 
 r.squaredGLMM(m_MaxTemp)
 
-###QQ plot of residuals (normality assumption)
-qqnorm(resid(m_MaxTemp)); qqline(resid(m_MaxTemp))   #kinda leans with the line 
+qqnorm(resid(m_MaxTemp)); qqline(resid(m_MaxTemp))   ###QQ plot of residuals (normality assumption)
+                                                    #kinda leans with the line 
+plot(m_MaxTemp)       ####Residuals vs fitted (homoscedasticity assumption)
+                                  #maxtemp maybe log transformed ??
 
-####Residuals vs fitted (homoscedasticity assumption)
-plot(m_MaxTemp)       #maxtemp maybe log transformed ??
+vif(m_MaxTemp)        #check for VIF > 5 High multicollinearity. 
+                      #twigs fresh and dry removed = reduced 
 
-##multicollinearity
-###check for VIF > 5 High multicollinearity. 
-#twigs fresh and dry removed = reduced 
-vif(m_MaxTemp)
+
 
 #leaf weights are a bit problematic
 
@@ -317,7 +311,6 @@ sel_MaxTemp <- step(MaxTemp_ml)
 sel_MaxTemp                # step table
 
 ###selected MT model refit again
-###visualize preferred model. ggplot? 
 new_MaxTemp_m <- lmer(MaxTemp ~ 
                    FMC_proportion + (1 | species_name), 
                  data = Shared_spp_df02, 
@@ -328,8 +321,6 @@ summary(new_MaxTemp_m)
 
 r.squaredGLMM(new_MaxTemp_m)
 
-#
-##
 ###visualize 
 ggplot(Shared_spp_df02, aes(x = FMC_proportion, y = MaxTemp)) +
   geom_point(alpha = 0.4) +
@@ -365,10 +356,8 @@ r.squaredGLMM(m_PostBurnM)
 ###QQ plot of residuals (normality assumption)
 qqnorm(resid(m_PostBurnM)); qqline(resid(m_PostBurnM))
 
-# Residuals vs fitted (homoscedasticity assumption)
 plot(m_PostBurnM)   #maybe no transformation yet
 
-#
 vif(m_PostBurnM)    #remove twigs fresh and dry
             
 #
@@ -420,8 +409,6 @@ summary(new_PostBurnM_m)
 
 r.squaredGLMM(new_PostBurnM_m)
 
-#
-##
 ###visualize 
 Shared_spp_df02 %>%
   mutate(species_name = reorder(species_name, PostBurnM, FUN = median, na.rm = TRUE)) %>%
@@ -453,15 +440,10 @@ summary(m_IgnTime)
 
 r.squaredGLMM(m_IgnTime)
 
-#
-##
-###QQ plot of residuals (normality assumption)
 qqnorm(resid(m_IgnTime)); qqline(resid(m_IgnTime))
 
-# Residuals vs fitted (homoscedasticity assumption)
 plot(m_IgnTime)   
 
-###
 vif(m_IgnTime)  #remove twigs fresh and dry
 
 #
