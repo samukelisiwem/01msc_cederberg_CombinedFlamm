@@ -1,7 +1,6 @@
 #
 # Data chapter 2: Investigating the potential of predicting flammability based of leaf traits
-##
-### Flamm is flammability experiments data 
+## Flamm is flammability experiments data 
 ### Fieldtrait and Labtrait are Henrys leaf trait data
 
 library(tidyverse)
@@ -14,20 +13,7 @@ library(lmerTest)
 #
 ##
 ### cederberg and george data combined 
-Flamm <- read_excel("Data/CombinedOG.xlsx")
-
-Flamm %>%
-  dplyr::filter(species_name == "Leucadendron eucalyptifolium") %>%
-  dplyr::count(growth_form)
-
-Flamm <- Flamm %>%
-  dplyr::mutate(
-    growth_form = dplyr::if_else(
-      species_name == "Leucadendron eucalyptifolium",
-      "Tree",
-      growth_form
-    )
-  )
+Flamm <- read_csv("Data/CombinedOG.csv")
 
 #### henry field trait data
 Fieldtrait <- read.csv("Data/Field_Traits_Final.csv") 
@@ -40,18 +26,20 @@ Fieldtrait <- Fieldtrait %>%
   mutate(scientific_name_WFO = tolower(trimws(scientific_name_WFO)))
 
 #
-##explore
+## explore
 str(Flamm)
+
 str(Fieldtrait)
+
 colnames(Fieldtrait)
+
 colnames(Flamm)
 
 #
 ##
-### see Unique species from flammability data
-unique(Flamm$Accepted_name) #53 species 
+### see Unique species from flammability & field leaf data
+unique(Flamm$Accepted_name) #52 species 
 
-### Unique species from field leaf traits
 unique(Fieldtrait$scientific_name_WFO)  #1000+ species 
 
 unique(Fieldtrait$subregion)
@@ -59,7 +47,8 @@ unique(Fieldtrait$subregion)
 #
 ##
 ### which species are shared between Flamm and Fieldtrait 
-shared_species <- intersect(unique(Flamm$Accepted_name), unique(Fieldtrait$scientific_name_WFO))
+shared_species <- intersect(unique(Flamm$Accepted_name), 
+                            unique(Fieldtrait$scientific_name_WFO))
 print(shared_species)   #33 shared, not bad ..19??
 
 #
@@ -69,24 +58,21 @@ Flamm_shared <- Flamm %>% filter(Accepted_name %in% shared_species)
 
 Fieldtrait_shared <- Fieldtrait %>% filter(scientific_name_WFO %in% shared_species)
 
-unique(Fieldtrait_shared$scientific_name_WFO)
-
-### join the two dfs by shared species
+# join the two dfs by shared species
 Shared_spp_df01 <- Flamm_shared %>%
   left_join(Fieldtrait_shared,
             by = c("Accepted_name" = "scientific_name_WFO"))  %>%
   filter(Accepted_name %in% shared_species)   #not having replicate causes problems..??
 
-colnames(Shared_spp_df01)
+print(sort(unique(Shared_spp_df01$species_name)))
 
-unique(Shared_spp_df01$species_name)
+colnames(Shared_spp_df01)
 
 #
 ## Join Labtrait data to this shared_spp_df01 and create a new Shared_spp_02
 ### Shared_spp_df02 will have all flammability traits and leaf traits (field and Lab measured)
 
-#
-## Labtrait data
+### Labtrait data
 Labtrait <- read.csv("Data/Lab_Traits_Final.csv")
 
 ### make lower case and spacing
@@ -95,12 +81,10 @@ Labtrait <- Labtrait %>%
 
 colnames(Labtrait)
 
-#
-##
 ### confirm shared species with Shared_spp_df01
-shared_species02 <- intersect(unique(Shared_spp_df01$Accepted_name), unique(Labtrait$scientific_name_WFO))
-print(shared_species02)  #Same species n=33
-
+shared_species02 <- intersect(unique(Shared_spp_df01$Accepted_name), 
+                              unique(Labtrait$scientific_name_WFO))
+print(sort(unique(shared_species02)))  #Same species n=33
 
 ### join by species to create a new df
 Shared_spp_df02 <- Shared_spp_df01 %>%
@@ -128,28 +112,28 @@ trait_col <- c(
 ###
 sapply(Shared_spp_df02[trait_col], class)
 
-#
-##
 ### Convert all trait columns to relevant class 
 Shared_spp_df02 <- Shared_spp_df02 %>%
   mutate(
     pubescence   = as.factor(pubescence),
     num_leaves   = readr::parse_number(as.character(num_leaves)),
-    branch_order = as.numeric(branch_order)   # force numeric
+    branch_order = as.numeric(branch_order)  
   )          #re-run sapply above
 
 #
 ##
-### 3 Flammability traits names
+### 3 Flammability component
 flamm_col <- c(
   "TimeToFlaming(s)", 
   "PostBurntMassEstimate(%)", 
   "MaximumFlameTemperature(°C)"
 )
 
+
 ############################################RQ1
 
-# Do leaf traits explain variation in flammability attributes, and which traits are most influential?
+# Do leaf traits explain variation in flammability attributes, 
+# and which traits are most influential?
 ## linear mixed-effects models with species as random effects 
 ### adding subregion as second randoms complicates model
 
@@ -162,7 +146,8 @@ flamm_col <- c(
 #   twig_fresh_g + twig_dry_g +
 #    lma + succulence + ldmc +
 #    (1 | species_name) + (1 | subregion.x), #2 randoms
-#  data = Shared_spp_df02, REML = TRUE)    #Warning message:Some predictor variables are on very different scales: consider rescaling 
+#  data = Shared_spp_df02, REML = TRUE)    
+#Warning message:Some predictor variables are on very different scales: consider rescaling 
 
 #
 ##
@@ -179,7 +164,7 @@ qqnorm(MT); qqline(MT)
 
 #
 ## Post Burn Mass
-#### 
+###
 PBM <- Shared_spp_df02$`PostBurntMassEstimate(%)`
 hist(PBM, breaks = 30, main = "Histogram: Post Burn Mass", xlab = "%")
 skewness(PBM, na.rm = TRUE)
@@ -227,8 +212,6 @@ Shared_spp_df02 <- Shared_spp_df02 %>%
   mutate(across(all_of(trait_col), 
                 ~ if (is.numeric(.)) as.numeric(scale(.)) else .))
 
-#
-##
 ### check if trait were scaled 
 sapply(Shared_spp_df02[trait_col], function(x) {
   if (is.numeric(x)) c(mean = mean(x, na.rm = TRUE),
@@ -267,10 +250,10 @@ summary(m_MaxTemp)
 
 r.squaredGLMM(m_MaxTemp)
 
-qqnorm(resid(m_MaxTemp)); qqline(resid(m_MaxTemp))   ###QQ plot of residuals (normality assumption)
-                                                    #kinda leans with the line 
-plot(m_MaxTemp)       ####Residuals vs fitted (homoscedasticity assumption)
-                                  #maxtemp maybe log transformed ??
+qqnorm(resid(m_MaxTemp)); qqline(resid(m_MaxTemp))  # QQ plot of residuals (normality assumption)
+                                                    # kinda leans with the line 
+plot(m_MaxTemp)       # Residuals vs fitted (homoscedasticity assumption)
+                                  # maxtemp maybe log transformed ??
 
 vif(m_MaxTemp)        #check for VIF > 5 High multicollinearity. 
                       #twigs fresh and dry removed = reduced 
@@ -290,7 +273,7 @@ dat_MaxTemp <- Shared_spp_df02 %>%
     leaf_fresh_wgt_g, leaf_dry_wgt_g, 
     lma, fwc, succulence, ldmc, lwr, twig_fwc
   ) %>%
-  tidyr::drop_na() %>%          # <- ensures all submodels use the same rows
+  tidyr::drop_na() %>%          # ensures all submodels use the same rows
   mutate(
     pubescence   = as.factor(pubescence),
     species_name = droplevels(as.factor(species_name))
@@ -518,9 +501,12 @@ ggplot(Shared_spp_df02, aes(x = FMC_proportion, y = IgnTime)) +
 # Is plant flammability better explained by continuous trait variation or by categorical growth form?
 ## Growth-form models
 ###
-gf_MaxTemp  <- lmer(`MaxTemp` ~ growth_form + (1|species_name), data = Shared_spp_df02, REML = FALSE)
-gf_PostBurnM <- lmer(`PostBurnM` ~ growth_form + (1|species_name), data = Shared_spp_df02, REML = FALSE)
-gf_IgnTime  <- lmer(`IgnTime` ~ growth_form + (1|species_name), data = Shared_spp_df02, REML = FALSE)
+gf_MaxTemp  <- lmer(`MaxTemp` ~ growth_form + (1|species_name), 
+                    data = Shared_spp_df02, REML = FALSE)
+gf_PostBurnM <- lmer(`PostBurnM` ~ growth_form + (1|species_name), 
+                     data = Shared_spp_df02, REML = FALSE)
+gf_IgnTime  <- lmer(`IgnTime` ~ growth_form + (1|species_name), 
+                    data = Shared_spp_df02, REML = FALSE)
 
 #
 summary(gf_MaxTemp)
@@ -534,7 +520,6 @@ r.squaredGLMM(gf_IgnTime)
 
 
 length(unique(Shared_spp_df02$species_name))   # how many unique species
-unique(Shared_spp_df02$species_name)           # list them
 
 #########################################xxxxx#################
 <<<<<<< HEAD
@@ -545,8 +530,7 @@ unique(Shared_spp_df02$species_name)           # list them
 
 ##################################################################
 # Adapted from Raubenheimer et al 2025
-##
-### To investigate the underlying structure of the leaf trait data
+## To investigate the underlying structure of the leaf trait data
 ### PCA All species pooled
 
 library(FactoMineR)    #For PCA
@@ -566,7 +550,7 @@ colSums(is.na(trait_data))  #must check for missing values
 
 # Estimate optimal number of dimensions for imputation
 ncp_est <- estim_ncpPCA(trait_data, scale = TRUE)
-ncp_est$ncp #View recommended number of components
+ncp_est$ncp             #View recommended number of components
 
 # Use the recommended number to impute missing values
 trait_imputed <- imputePCA(trait_data, ncp = 5, scale = TRUE)$completeObs
@@ -592,16 +576,18 @@ fviz_pca_ind(pca_result,
              addEllipses = TRUE, # add grouping ellipses
              legend.title = "Growth Form")
 
+##########################################################
 #
 ## Species mean PCA rather
 ### Keep only numeric traits from your trait_col list
-metad <- Shared_spp_df02 %>%
+sppgrwth <- Shared_spp_df02 %>%
   dplyr::select(species_name, growth_form)
 
-# keep rows aligned with 'trait_imputed' (if trait_imputed came from trait_data built from Shared_spp_df02)
-stopifnot(nrow(metad) == nrow(trait_imputed))
+# keep rows aligned with 'trait_imputed' (if trait_imputed came 
+# from trait_data built from Shared_spp_df02)
+stopifnot(nrow(sppgrwth) == nrow(trait_imputed))
 
-pca_full <- cbind(metad, trait_imputed)
+pca_full <- cbind(sppgrwth, trait_imputed)
 
 #all traits averaged per species
 species_means <- pca_full %>%
