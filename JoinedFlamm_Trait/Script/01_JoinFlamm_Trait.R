@@ -47,9 +47,9 @@ unique(Fieldtrait$subregion)
 #
 ##
 ### which species are shared between Flamm and Fieldtrait 
-shared_species <- intersect(unique(Flamm$Accepted_name), 
-                            unique(Fieldtrait$scientific_name_WFO))
-print(shared_species)   #33 shared, not bad ..19??
+print(intersect(unique(Flamm$Accepted_name), 
+                            unique(Fieldtrait$scientific_name_WFO)))
+                         #33 shared, not bad ..19??
 
 #
 ##
@@ -72,7 +72,7 @@ colnames(Shared_spp_df01)
 ## Join Labtrait data to this shared_spp_df01 and create a new Shared_spp_02
 ### Shared_spp_df02 will have all flammability traits and leaf traits (field and Lab measured)
 
-### Labtrait data
+### read in Labtrait data
 Labtrait <- read.csv("Data/Lab_Traits_Final.csv")
 
 ### make lower case and spacing
@@ -155,16 +155,16 @@ flamm_col <- c(
 library(e1071)   # for skewness
 
 #
-## Max Temperature
-###
+## 
+### Max Temperature
 MT <- Shared_spp_df02$`MaximumFlameTemperature(°C)`
 hist(MT, breaks = 30, main = "Histogram: Max Temperature", xlab = "°C")
 skewness(MT, na.rm = TRUE)  #check residuals
 qqnorm(MT); qqline(MT)
 
 #
-## Post Burn Mass
-###
+## 
+### Post Burn Mass
 PBM <- Shared_spp_df02$`PostBurntMassEstimate(%)`
 hist(PBM, breaks = 30, main = "Histogram: Post Burn Mass", xlab = "%")
 skewness(PBM, na.rm = TRUE)
@@ -206,11 +206,10 @@ mass_traits <- c(
 )
 
 #
-## scale() traits for the following steps 
-###
+## 
+### scale() traits for the following steps 
 Shared_spp_df02 <- Shared_spp_df02 %>%
-  mutate(across(all_of(trait_col), 
-                ~ if (is.numeric(.)) as.numeric(scale(.)) else .))
+  mutate(across(all_of(trait_col) & where(is.numeric), ~ as.numeric(scale(.))))
 
 ### check if trait were scaled 
 sapply(Shared_spp_df02[trait_col], function(x) {
@@ -229,7 +228,97 @@ Shared_spp_df02 <- Shared_spp_df02 |>
     IgnTime   = `TimeToFlaming(s)`
   )         #i see new columns we created not replaced
 
-# COMBUSTIBILITY full model
+
+# IGNITABILITY full model  
+##
+###
+m_IgnTime <- lmer(
+  IgnTime ~ 
+    height_cm + canopy_axis_1_cm + canopy_axis_2_cm +
+    canopy_area_cm2 + branch_order + pubescence + percent_N +
+    percent_C + C_to_N_ratio + d_15N_14N + d_13C_12C +
+    FMC_proportion + num_leaves + leaf_area_cm2 + 
+    leaf_length_cm + avg_leaf_width_cm + max_leaf_width_cm + 
+    leaf_thickness_mm + leaf_fresh_wgt_g + leaf_dry_wgt_g + 
+    lma + fwc + 
+    succulence + ldmc + lwr + twig_fwc +
+    (1 | species_name),
+  data = Shared_spp_df02,
+  REML = FALSE
+)
+summary(m_IgnTime)
+
+r.squaredGLMM(m_IgnTime)
+
+qqnorm(resid(m_IgnTime)); qqline(resid(m_IgnTime))
+
+plot(m_IgnTime)   
+
+vif(m_IgnTime)  #remove twigs fresh and dry
+
+#
+## IGNITABILITY selection
+###
+dat_IgnTime <- Shared_spp_df02 %>%
+  select(
+    IgnTime, species_name,
+    height_cm, canopy_axis_1_cm, canopy_axis_2_cm, canopy_area_cm2,
+    branch_order, pubescence,
+    percent_N, percent_C, C_to_N_ratio, d_15N_14N, d_13C_12C,
+    FMC_proportion, num_leaves, leaf_area_cm2, leaf_length_cm,
+    avg_leaf_width_cm, max_leaf_width_cm, leaf_thickness_mm,
+    leaf_fresh_wgt_g, leaf_dry_wgt_g, 
+    lma, fwc, succulence, ldmc, lwr, twig_fwc
+  ) %>%
+  tidyr::drop_na() %>%          # <- ensures all submodels use the same rows
+  mutate(
+    pubescence   = as.factor(pubescence),
+    species_name = droplevels(as.factor(species_name))
+  )
+
+#
+IgnTime_ml <- lmer(
+  IgnTime ~ 
+    height_cm + canopy_axis_1_cm + canopy_axis_2_cm + canopy_area_cm2 +
+    branch_order + pubescence +
+    percent_N + percent_C + C_to_N_ratio + d_15N_14N + d_13C_12C +
+    FMC_proportion + num_leaves + leaf_area_cm2 + leaf_length_cm +
+    avg_leaf_width_cm + max_leaf_width_cm + leaf_thickness_mm +
+    leaf_fresh_wgt_g + leaf_dry_wgt_g + 
+    lma + fwc + succulence + ldmc + lwr + twig_fwc +
+    (1 | species_name),
+  data = dat_IgnTime,
+  REML = FALSE
+)
+
+#
+sel_IgnTime <- step(IgnTime_ml)
+sel_IgnTime               # step table
+
+#
+new_IgnTime_m <- lmer(IgnTime ~ 
+                        FMC_proportion + (1 | species_name), 
+                      data = Shared_spp_df02, 
+                      REML = FALSE
+)
+
+summary(new_IgnTime_m)
+
+r.squaredGLMM(new_IgnTime_m)
+
+#
+##
+###
+ggplot(Shared_spp_df02, aes(x = FMC_proportion, y = IgnTime)) +
+  geom_point(alpha = 0.4) +
+  geom_smooth(method = "lm", formula = y ~ x, se = TRUE, color = "blue") +
+  labs(title = "Ignitability ~ FMC proportion",
+       x = "FMC proportion",
+       y = "TimeToFlaming") + 
+  ylim(0, 120)
+
+
+#COMBUSTIBILITY full model
 ##
 ###
 m_MaxTemp <- lmer(
@@ -240,7 +329,7 @@ m_MaxTemp <- lmer(
     FMC_proportion + num_leaves + leaf_area_cm2 + 
     leaf_length_cm + avg_leaf_width_cm + max_leaf_width_cm + 
     leaf_thickness_mm + leaf_fresh_wgt_g + leaf_dry_wgt_g + 
-    lma + fwc +    #removed the twiggy traits
+    lma + fwc +    #removed the twiggy traits = multicollinear 
     succulence + ldmc + lwr + twig_fwc +
     (1 | species_name),
   data = Shared_spp_df02,
@@ -294,7 +383,6 @@ MaxTemp_ml <- lmer(
   REML = FALSE
 )
 
-###
 sel_MaxTemp <- step(MaxTemp_ml)
 sel_MaxTemp                # step table
 
@@ -407,94 +495,6 @@ Shared_spp_df02 %>%
        fill = "Growth form") +
   theme(axis.text.x = element_text(angle = 90, hjust = 1))
 
-# IGNITABILITY full model  
-##
-###
-m_IgnTime <- lmer(
-    IgnTime ~ 
-    height_cm + canopy_axis_1_cm + canopy_axis_2_cm +
-    canopy_area_cm2 + branch_order + pubescence + percent_N +
-    percent_C + C_to_N_ratio + d_15N_14N + d_13C_12C +
-    FMC_proportion + num_leaves + leaf_area_cm2 + 
-    leaf_length_cm + avg_leaf_width_cm + max_leaf_width_cm + 
-    leaf_thickness_mm + leaf_fresh_wgt_g + leaf_dry_wgt_g + 
-    lma + fwc + 
-    succulence + ldmc + lwr + twig_fwc +
-    (1 | species_name),
-  data = Shared_spp_df02,
-  REML = FALSE
-)
-summary(m_IgnTime)
-
-r.squaredGLMM(m_IgnTime)
-
-qqnorm(resid(m_IgnTime)); qqline(resid(m_IgnTime))
-
-plot(m_IgnTime)   
-
-vif(m_IgnTime)  #remove twigs fresh and dry
-
-#
-## IGNITABILITY selection
-###
-dat_IgnTime <- Shared_spp_df02 %>%
-  select(
-    IgnTime, species_name,
-    height_cm, canopy_axis_1_cm, canopy_axis_2_cm, canopy_area_cm2,
-    branch_order, pubescence,
-    percent_N, percent_C, C_to_N_ratio, d_15N_14N, d_13C_12C,
-    FMC_proportion, num_leaves, leaf_area_cm2, leaf_length_cm,
-    avg_leaf_width_cm, max_leaf_width_cm, leaf_thickness_mm,
-    leaf_fresh_wgt_g, leaf_dry_wgt_g, 
-    lma, fwc, succulence, ldmc, lwr, twig_fwc
-  ) %>%
-  tidyr::drop_na() %>%          # <- ensures all submodels use the same rows
-  mutate(
-    pubescence   = as.factor(pubescence),
-    species_name = droplevels(as.factor(species_name))
-  )
-
-#
-IgnTime_ml <- lmer(
-    IgnTime ~ 
-    height_cm + canopy_axis_1_cm + canopy_axis_2_cm + canopy_area_cm2 +
-    branch_order + pubescence +
-    percent_N + percent_C + C_to_N_ratio + d_15N_14N + d_13C_12C +
-    FMC_proportion + num_leaves + leaf_area_cm2 + leaf_length_cm +
-    avg_leaf_width_cm + max_leaf_width_cm + leaf_thickness_mm +
-    leaf_fresh_wgt_g + leaf_dry_wgt_g + 
-    lma + fwc + succulence + ldmc + lwr + twig_fwc +
-    (1 | species_name),
-  data = dat_IgnTime,
-  REML = FALSE
-)
-
-#
-sel_IgnTime <- step(IgnTime_ml)
-sel_IgnTime               # step table
-
-#
-new_IgnTime_m <- lmer(IgnTime ~ 
-                             FMC_proportion + (1 | species_name), 
-                           data = Shared_spp_df02, 
-                           REML = FALSE
-)
-
-summary(new_IgnTime_m)
-
-r.squaredGLMM(new_IgnTime_m)
-
-#
-##
-###
-ggplot(Shared_spp_df02, aes(x = FMC_proportion, y = IgnTime)) +
-  geom_point(alpha = 0.4) +
-  geom_smooth(method = "lm", formula = y ~ x, se = TRUE, color = "blue") +
-  labs(title = "Ignitability ~ FMC proportion",
-       x = "FMC proportion",
-       y = "TimeToFlaming") + 
-  ylim(0, 120)
-
 
 ########################################RQ2
 
@@ -509,14 +509,15 @@ gf_IgnTime  <- lmer(`IgnTime` ~ growth_form + (1|species_name),
                     data = Shared_spp_df02, REML = FALSE)
 
 #
+summary(gf_IgnTime)
 summary(gf_MaxTemp)
 summary(gf_PostBurnM)
-summary(gf_IgnTime)
 
 # R^2 (marginal = fixed effects; conditional = fixed + random)
+r.squaredGLMM(gf_IgnTime)
 r.squaredGLMM(gf_MaxTemp)
 r.squaredGLMM(gf_PostBurnM)
-r.squaredGLMM(gf_IgnTime)
+
 
 
 length(unique(Shared_spp_df02$species_name))   # how many unique species
