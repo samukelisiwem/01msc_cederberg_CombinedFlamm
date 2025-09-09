@@ -47,9 +47,10 @@ unique(Fieldtrait$subregion)
 #
 ##
 ### which species are shared between Flamm and Fieldtrait 
-print(intersect(unique(Flamm$Accepted_name), 
-                            unique(Fieldtrait$scientific_name_WFO)))
+shared_species <- intersect(unique(Flamm$Accepted_name), 
+                            unique(Fieldtrait$scientific_name_WFO))
                          #33 shared, not bad ..19??
+print(shared_species)
 
 #
 ##
@@ -631,4 +632,17 @@ pca_result$eig   #dont really get this
 
 species_pca$eig
 
-
+###################################################################
+#
+##
+###PCA + trait loadings 
+fviz_pca_biplot(
+  species_pca,
+  geom.ind    = "point",
+  col.ind     = species_means$growth_form, # color by growth form
+  addEllipses = TRUE,                      # draw ellipses
+  label       = "var",                      # show variable arrows
+  repel       = TRUE,
+  legend.title = "Growth form",
+  title       = "PCA Biplot: Species Means & Trait Loadings"
+)
