@@ -593,12 +593,12 @@ pca_full <- cbind(sppgrwth, trait_imputed)
 
 #all traits averaged per species
 species_means <- pca_full %>%
-  dplyr::group_by(species_name, growth_form) %>%
-  dplyr::summarise(dplyr::across(where(is.numeric), mean), .groups = "drop")
+ group_by(species_name, growth_form) %>%
+ summarise(across(where(is.numeric), mean), .groups = "drop")
 
 #building PCA 
 pca_matrix <- species_means %>%
-  dplyr::select(where(is.numeric)) %>%
+  select(where(is.numeric)) %>%
   as.data.frame()
 
 rownames(pca_matrix) <- species_means$species_name
@@ -632,7 +632,6 @@ pca_result$eig   #dont really get this
 
 species_pca$eig
 
-###################################################################
 #
 ##
 ###PCA + trait loadings 
@@ -646,5 +645,31 @@ fviz_pca_biplot(
   legend.title = "Growth form",
   title       = "PCA Biplot: Species Means & Trait Loadings"
 )
+
+#############################################################
+#
+##
+###flam traits pca only
+flamm_means <- Shared_spp_df02 %>%
+  group_by(species_name) %>%
+  summarise(across(all_of(flamm_col), mean, na.rm = TRUE))
+
+
+# Run PCA
+flamm_pca <- PCA(flamm_means [, flamm_col], scale.unit = TRUE, graph = FALSE)
+
+fviz_pca_biplot(
+  flamm_pca,
+  geom.ind    = "point",      # species as points
+  col.ind     = species_means$growth_form,
+  label       = "var",        # show flammability trait arrows
+  repel       = TRUE,
+  legend.title = "Growth form",
+  title       = "PCA of Flammability Traits"
+)
+
+
+###########################################
+
 
 
