@@ -189,7 +189,7 @@ qqnorm(TT); qqline(TT)
 structural_traits <- c(
   "height_cm", "canopy_axis_1_cm", "canopy_axis_2_cm", "canopy_area_cm2",
   "branch_order", "leaf_area_cm2", "leaf_length_cm", "avg_leaf_width_cm",
-  "max_leaf_width_cm", "leaf_thickness_mm", "lwr", "pubescence"
+  "max_leaf_width_cm", "leaf_thickness_mm", "lwr", "pubescence", "num_leaves"
 )
 
 chemical_traits <- c(
@@ -646,3 +646,5 @@ fviz_pca_biplot(
   legend.title = "Growth form",
   title       = "PCA Biplot: Species Means & Trait Loadings"
 )
+
+
