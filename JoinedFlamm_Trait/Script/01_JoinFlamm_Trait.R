@@ -230,6 +230,83 @@ Shared_spp_df02 <- Shared_spp_df02 |>
   )         #i see new columns we created not replaced
 
 
+#Correlation matrix of traits
+## exclude pubescence (factor)
+###showing correlation coefficient (-1 to 1)
+numeric_traits <- trait_col[trait_col != "pubescence"]
+cor_matrix <- cor(Shared_spp_df02[numeric_traits], use = "pairwise.complete.obs")
+
+library(corrplot)
+corrplot(cor_matrix, method = "color", type = "upper", tl.cex = 0.7)
+
+corrplot(cor_matrix, method = "color", type = "upper", tl.cex = 0.7)
+
+cor_table <- as.data.frame(as.table(cor_matrix))
+print(cor_table)
+
+write.xlsx(cor_table, "Trait_Correlation_Table.xlsx")
+
+
+#run full model with reduced collinearity 
+##
+###IGNITABILITY(2) full model  and species not random
+##
+###
+IgnTime2 <- lm(
+  IgnTime ~ 
+    height_cm +
+    canopy_area_cm2 + branch_order + pubescence + percent_N +
+    percent_C + d_15N_14N + d_13C_12C +
+    FMC_proportion + num_leaves + leaf_area_cm2 + 
+    leaf_length_cm + 
+    leaf_dry_wgt_g + 
+    lma + succulence + ldmc + lwr +
+    species_name,
+  data = Shared_spp_df02,
+  REML = FALSE
+)
+summary(IgnTime2)
+
+vif(IgnTime2) #suggest leaf length
+
+
+MaxTemp2 <- lm(
+  IgnTime ~ 
+    height_cm +
+    canopy_area_cm2 + branch_order + pubescence + percent_N +
+    percent_C + d_15N_14N + d_13C_12C +
+    FMC_proportion + num_leaves + leaf_area_cm2 + 
+    leaf_length_cm + 
+    leaf_dry_wgt_g + 
+    lma + succulence + ldmc + lwr +
+    species_name,
+  data = Shared_spp_df02,
+  REML = FALSE
+)
+summary(MaxTemp2)
+
+vif(MaxTemp2)
+
+
+Comb2 <- lm(
+  IgnTime ~ 
+    height_cm +
+    canopy_area_cm2 + branch_order + pubescence + percent_N +
+    percent_C + d_15N_14N + d_13C_12C +
+    FMC_proportion + num_leaves + leaf_area_cm2 + 
+    leaf_length_cm + 
+    leaf_dry_wgt_g + 
+    lma + succulence + ldmc + lwr +
+    species_name,
+  data = Shared_spp_df02,
+  REML = FALSE
+)
+summary(Comb2)
+
+vif(Comb2)
+
+
+
 # IGNITABILITY full model  
 ##
 ###
@@ -348,6 +425,8 @@ plot(m_MaxTemp)       # Residuals vs fitted (homoscedasticity assumption)
 vif(m_MaxTemp)        #check for VIF > 5 High multicollinearity. 
                       #twigs fresh and dry removed = reduced 
 #leaf weights are a bit problematic
+
+#correlation matrix values r values 
 
 #
 ## COMBUSTIBILITY selection
