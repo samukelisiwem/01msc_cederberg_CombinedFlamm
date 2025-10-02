@@ -97,6 +97,39 @@ colnames(Shared_spp_df02)
 
 length(unique(Shared_spp_df02$species_name))
 
+#
+##how many spp from each growth form
+sapply(split(Shared_spp_df02$species_name, Shared_spp_df02$growth_form), function(x) length(unique(x)))
+
+split(Shared_spp_df02$species_name, Shared_spp_df02$growth_form) %>%
+  lapply(unique)
+
+#
+##
+###new growth form column_Proteiods, ericoids, restios, herbaceous, tree
+proteoids <- c("Protea laurifolia","Leucadendron glaberrimum", "Leucadendron pubescens", "Leucadendron eucalyptifolium", "Searsia lucida", "Diospyros dichrophylla", "Gymnosporia buxifolia", "Osyris compressa", "Protea nitida","Dodonaea viscosa" )   
+ericoids  <- c("Passerina truncata", "Stoebe plumosa", "Elytropappus gnaphaloides", "Paranomus bracteolaris", "Erica discolor", "Cliffortia ilicifolia", "Agathosma ovata", "Metalasia muricata","Phylica axillaris", "Elytropappus rhinocerotis" )             
+restios   <- c("Restio sieberi", "Willdenowia incurvata") 
+herbaceous <- c("Pteridium aquilinum", "Schoenus gracillimus", "Pelargonium scabrum") # add herbs, ferns, sedges
+trees <- c("Widdringtonia cedarbergensis", "Maytenus oleoides","Brabejum stellatifolium","Pterocelastrus tricuspidatus", "Tarchonanthus littoralis", "Sideroxylon inerme", "Cassine peragua", "Metrosideros angustifolia") # add all trees
+
+# Assign categories
+Shared_spp_df02 <- Shared_spp_df02 %>%
+  mutate(growth_form_2 = case_when(
+    species_name %in% proteoids    ~ "Proteoids",
+    species_name %in% ericoids     ~ "Ericoids",
+    species_name %in% restios      ~ "Restios",
+    species_name %in% herbaceous   ~ "Herbaceous",
+    species_name %in% trees        ~ "Tree",
+    TRUE                           ~ "Other"  # any species not listed
+  ))
+
+sapply(split(Shared_spp_df02$species_name, Shared_spp_df02$growth_form_2), function(x) length(unique(x)))
+
+split(Shared_spp_df02$species_name, Shared_spp_df02$growth_form_2) %>%
+  lapply(unique)
+
+
 # 28leaf traits 
 
 trait_col <- c(
@@ -244,12 +277,13 @@ corrplot(cor_matrix, method = "color", type = "upper", tl.cex = 0.7)
 cor_table <- as.data.frame(as.table(cor_matrix))
 print(cor_table)
 
-write.xlsx(cor_table, "Trait_Correlation_Table.xlsx")
+#write.xlsx(cor_table, "Trait_Correlation_Table.xlsx")
 
 
 #run full model with reduced collinearity 
 ##
 ###IGNITABILITY(2) full model  and species not random
+
 ##
 ###
 IgnTime2 <- lm(
@@ -258,20 +292,20 @@ IgnTime2 <- lm(
     canopy_area_cm2 + branch_order + pubescence + percent_N +
     percent_C + d_15N_14N + d_13C_12C +
     FMC_proportion + num_leaves + leaf_area_cm2 + 
-    leaf_length_cm + 
     leaf_dry_wgt_g + 
     lma + succulence + ldmc + lwr +
     species_name,
-  data = Shared_spp_df02,
-  REML = FALSE
+  data = Shared_spp_df02
 )
+
 summary(IgnTime2)
 
-vif(IgnTime2) #suggest leaf length
+
+vif(IgnTime2) #suggests leaf length (16 traits left here)
 
 
 MaxTemp2 <- lm(
-  IgnTime ~ 
+  MaxTemp ~ 
     height_cm +
     canopy_area_cm2 + branch_order + pubescence + percent_N +
     percent_C + d_15N_14N + d_13C_12C +
@@ -280,8 +314,7 @@ MaxTemp2 <- lm(
     leaf_dry_wgt_g + 
     lma + succulence + ldmc + lwr +
     species_name,
-  data = Shared_spp_df02,
-  REML = FALSE
+  data = Shared_spp_df02
 )
 summary(MaxTemp2)
 
@@ -289,7 +322,7 @@ vif(MaxTemp2)
 
 
 Comb2 <- lm(
-  IgnTime ~ 
+  PostBurnM ~ 
     height_cm +
     canopy_area_cm2 + branch_order + pubescence + percent_N +
     percent_C + d_15N_14N + d_13C_12C +
@@ -298,8 +331,7 @@ Comb2 <- lm(
     leaf_dry_wgt_g + 
     lma + succulence + ldmc + lwr +
     species_name,
-  data = Shared_spp_df02,
-  REML = FALSE
+  data = Shared_spp_df02
 )
 summary(Comb2)
 
@@ -310,7 +342,7 @@ vif(Comb2)
 # IGNITABILITY full model  
 ##
 ###
-m_IgnTime <- lmer(
+IgnTime <- lmer(
   IgnTime ~ 
     height_cm + canopy_axis_1_cm + canopy_axis_2_cm +
     canopy_area_cm2 + branch_order + pubescence + percent_N +
@@ -324,15 +356,15 @@ m_IgnTime <- lmer(
   data = Shared_spp_df02,
   REML = FALSE
 )
-summary(m_IgnTime)
+summary(IgnTime)
 
-r.squaredGLMM(m_IgnTime)
+r.squaredGLMM(IgnTime)
 
-qqnorm(resid(m_IgnTime)); qqline(resid(m_IgnTime))
+qqnorm(resid(IgnTime)); qqline(resid(IgnTime))
 
-plot(m_IgnTime)   
+plot(IgnTime)   
 
-vif(m_IgnTime)  #remove twigs fresh and dry
+vif(IgnTime)  #remove twigs fresh and dry
 
 #
 ## IGNITABILITY selection
@@ -394,6 +426,8 @@ ggplot(Shared_spp_df02, aes(x = FMC_proportion, y = IgnTime)) +
        x = "FMC proportion",
        y = "TimeToFlaming") + 
   ylim(0, 120)
+
+
 
 
 #COMBUSTIBILITY full model
@@ -568,7 +602,7 @@ r.squaredGLMM(new_PostBurnM_m)
 ### visualize 
 Shared_spp_df02 %>%
   mutate(species_name = reorder(species_name, PostBurnM, FUN = median, na.rm = TRUE)) %>%
-  ggplot(aes(x = species_name, y = PostBurnM, fill = growth_form)) +
+  ggplot(aes(x = species_name, y = PostBurnM, fill = growth_form_2)) +
   geom_boxplot() +
   labs(title = "Consumability ~ species",
        x = "Species", y = "Post-burn Mass (%)",
@@ -592,6 +626,49 @@ gf_IgnTime  <- lmer(`IgnTime` ~ growth_form + (1|species_name),
 summary(gf_IgnTime)
 summary(gf_MaxTemp)
 summary(gf_PostBurnM)
+
+
+#using growth_form2 no random 
+gf2_IgnTime  <- lm (`IgnTime` ~ growth_form_2 + species_name, 
+                     data = Shared_spp_df02)
+summary(gf2_IgnTime)
+
+
+gf2_MaxTemp  <- lm (`MaxTemp` ~ growth_form_2 + species_name, 
+                    data = Shared_spp_df02)
+summary(gf2_MaxTemp)
+
+
+gf2_PostBurnM <- lm (`PostBurnM` ~ growth_form_2 + species_name, 
+                     data = Shared_spp_df02)
+summary(gf2_PostBurnM)
+
+
+###
+ggplot(Shared_spp_df02, aes(x = growth_form_2, y = IgnTime, fill = growth_form_2)) +
+  geom_boxplot(alpha = 0.6) +
+    labs(
+    x = "Growth Form",
+    y = "Ignition Time (s)",
+    title = "Distribution of Ignition Time by Growth Form"
+  ) +
+  theme_minimal() +
+  theme(legend.position = "none")
+
+
+#
+##
+###
+ggplot(Shared_spp_df02, aes(x = growth_form_2, y = IgnTime, fill = growth_form_2)) +
+  geom_boxplot(alpha = 0.5) +
+  labs(x = "Growth Form", y = "Ignition Time (s)", title = "Ignition Time by Growth Form") +
+  theme_minimal() +
+  theme(legend.position = "none")
+
+#
+r.squaredGLMM(gf2_IgnTime)
+r.squaredGLMM(gf2_MaxTemp)
+r.squaredGLMM(gf2_PostBurnM)
 
 # R^2 (marginal = fixed effects; conditional = fixed + random)
 r.squaredGLMM(gf_IgnTime)
@@ -648,12 +725,12 @@ pca_scores <- as.data.frame(pca_result$ind$coord)
 
 # Add back growth form and species name
 pca_scores$species_name <- Shared_spp_df02$species_name
-pca_scores$growth_form <- Shared_spp_df02$growth_form
+pca_scores$growth_form_2 <- Shared_spp_df02$growth_form_2
 
 #visualise  PCA
 fviz_pca_ind(pca_result,
              geom.ind = "point",
-             col.ind = pca_scores$growth_form, # color by growth form
+             col.ind = pca_scores$growth_form_2, # color by growth form
              addEllipses = TRUE, # add grouping ellipses
              legend.title = "Growth Form")
 
@@ -662,7 +739,7 @@ fviz_pca_ind(pca_result,
 ## Species mean PCA rather
 ### Keep only numeric traits from your trait_col list
 sppgrwth <- Shared_spp_df02 %>%
-  dplyr::select(species_name, growth_form)
+  dplyr::select(species_name, growth_form_2)
 
 # keep rows aligned with 'trait_imputed' (if trait_imputed came 
 # from trait_data built from Shared_spp_df02)
@@ -672,7 +749,7 @@ pca_full <- cbind(sppgrwth, trait_imputed)
 
 #all traits averaged per species
 species_means <- pca_full %>%
- group_by(species_name, growth_form) %>%
+ group_by(species_name, growth_form_2) %>%
  summarise(across(where(is.numeric), mean), .groups = "drop")
 
 #building PCA 
@@ -685,10 +762,9 @@ rownames(pca_matrix) <- species_means$species_name
 #run PCA
 species_pca <- PCA(pca_matrix, scale.unit = TRUE, graph = FALSE)
 
-# 
 fviz_pca_ind(species_pca,
            geom.ind    = "point",
-           col.ind     = species_means$growth_form, 
+           col.ind     = species_means$growth_form_2, 
            addEllipses = TRUE,
            legend.title = "Growth form",
            title        = "PCA of Species-Mean Traits"
@@ -699,7 +775,7 @@ fviz_pca_ind(species_pca,
 fviz_pca_biplot(
   species_pca,
   geom.ind  = "point",
-  col.ind   = species_means$growth_form,
+  col.ind   = species_means$growth_form_2,
   label     = "var",      # show variable arrows only
   repel     = TRUE,
   legend.title = "Growth form",
@@ -717,7 +793,7 @@ species_pca$eig
 fviz_pca_biplot(
   species_pca,
   geom.ind    = "point",
-  col.ind     = species_means$growth_form, # color by growth form
+  col.ind     = species_means$growth_form_2, # color by growth form
   addEllipses = TRUE,                      # draw ellipses
   label       = "var",                      # show variable arrows
   repel       = TRUE,
@@ -740,7 +816,7 @@ flamm_pca <- PCA(flamm_means [, flamm_col], scale.unit = TRUE, graph = FALSE)
 fviz_pca_biplot(
   flamm_pca,
   geom.ind    = "point",      # species as points
-  col.ind     = species_means$growth_form,
+  col.ind     = species_means$growth_form_2,
   label       = "var",        # show flammability trait arrows
   repel       = TRUE,
   legend.title = "Growth form",
