@@ -104,6 +104,8 @@ sapply(split(Shared_spp_df02$species_name, Shared_spp_df02$growth_form), functio
 split(Shared_spp_df02$species_name, Shared_spp_df02$growth_form) %>%
   lapply(unique)
 
+
+###########################################################
 #
 ##
 ###new growth form column_Proteiods, ericoids, restios, herbaceous, tree
@@ -131,7 +133,6 @@ split(Shared_spp_df02$species_name, Shared_spp_df02$growth_form_2) %>%
 
 
 # 28leaf traits 
-
 trait_col <- c(
   "height_cm", "canopy_axis_1_cm", "canopy_axis_2_cm", "canopy_area_cm2",  # 11 Field traits 
   "branch_order", "pubescence", "percent_N", "percent_C", "C_to_N_ratio",
@@ -188,9 +189,7 @@ flamm_col <- c(
 ### skewness test to determine is transformation is needed or not for my responses
 library(e1071)   # for skewness
 
-#
-## 
-### Max Temperature
+# Max Temperature
 MT <- Shared_spp_df02$`MaximumFlameTemperature(°C)`
 hist(MT, breaks = 30, main = "Histogram: Max Temperature", xlab = "°C")
 skewness(MT, na.rm = TRUE)  #check residuals
@@ -283,9 +282,6 @@ print(cor_table)
 #run full model with reduced collinearity 
 ##
 ###IGNITABILITY(2) full model  and species not random
-
-##
-###
 IgnTime2 <- lm(
   IgnTime ~ 
     height_cm +
@@ -654,6 +650,18 @@ ggplot(Shared_spp_df02, aes(x = growth_form_2, y = IgnTime, fill = growth_form_2
   ) +
   theme_minimal() +
   theme(legend.position = "none")
+
+#
+##
+###compare trait model vs growth form model
+#TT
+AIC(gf2_IgnTime, IgnTime2)
+
+##MaxT
+AIC(gf2_MaxTemp, MaxTemp2)
+
+#COM
+AIC(gf2_PostBurnM, Comb2)
 
 
 #
