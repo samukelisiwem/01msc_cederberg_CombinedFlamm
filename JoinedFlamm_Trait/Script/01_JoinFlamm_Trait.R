@@ -13,6 +13,7 @@ library(lme4)
 library(MuMIn)
 library(car)
 library(lmerTest)
+library(corrplot)
 
 # cederberg and george data combined 
 Flamm <- read_csv("Data/CombinedOG.csv")
@@ -46,7 +47,7 @@ unique(Fieldtrait$scientific_name_WFO)  #1000+ species
 unique(Fieldtrait$subregion)
 
 
-############################## Merge data sets ################################
+################################ Merge datasets ################################
 
 # which species are shared between Flamm and Fieldtrait df
 shared_species <- intersect(unique(Flamm$Accepted_name), 
@@ -61,19 +62,20 @@ Fieldtrait_shared <- Fieldtrait %>% filter(scientific_name_WFO %in% shared_speci
 
 # join the two dfs by shared species
 Shared_spp_df01 <- Flamm_shared %>%
-  left_join(Fieldtrait_shared,
+            left_join(Fieldtrait_shared,
             by = c("Accepted_name" = "scientific_name_WFO"))  %>%
-  filter(Accepted_name %in% shared_species)   #not having replicate causes problems..??
+            filter(Accepted_name %in% shared_species)   #not having replicate causes problems..??
 
+#list all species shared in the new df
 print(sort(unique(Shared_spp_df01$species_name)))
 
 colnames(Shared_spp_df01)
 
-# Join Labtrait data to this shared_spp_df01 and create a new Shared_spp_02
-# Shared_spp_df02 will have all flammability traits and leaf traits (field and Lab measured)
-
 
 ############################## read in Labtrait data ##########################
+
+# Join Labtrait data to this shared_spp_df01 and create a new Shared_spp_02
+# Shared_spp_df02 will have all flammability traits and leaf traits (field and Lab measured)
 
 Labtrait <- read.csv("Data/Lab_Traits_Final.csv")
 
@@ -156,7 +158,7 @@ sapply(Shared_spp_df02[trait_col], function(x) {
   else NA
 })
 
-sapply(Shared_spp_df02[trait_col], class)
+sapply(Shared_spp_df02[trait_col], class)  #pubescence is a character
 
 # Convert all trait columns to relevant class 
 Shared_spp_df02 <- Shared_spp_df02 %>%
@@ -165,6 +167,7 @@ Shared_spp_df02 <- Shared_spp_df02 %>%
     num_leaves   = readr::parse_number(as.character(num_leaves)),
     branch_order = as.numeric(branch_order)  
   )                                       #re-run sapply above
+                                          #pubescence is a factor 
 
 # 3 Flammability components grouped
 flamm_col <- c(
@@ -199,7 +202,7 @@ qqnorm(PBM); qqline(PBM)
 TT <- Shared_spp_df02$`TimeToFlaming(s)`
 hist(TT, breaks = 30, main = "Histogram: Time to Flaming", xlab = "Seconds")
 
-skewness(TT, na.rm = TRUE) #no transformation needed for any response variable
+skewness(TT, na.rm = TRUE) 
 qqnorm(TT); qqline(TT)
 
 # the above cool for noting for now...
@@ -236,11 +239,9 @@ Shared_spp_df02 <- Shared_spp_df02 |>
 
 ############################# Correlation analysis #############################
 
-# exclude pubescence (factor)
-# showing correlation coefficient (-1 inverse relationship RE to 1 positive-blue)
-library(corrplot)
+# showing correlation coefficients (-1 inverse relationship red and 1 positive blue)
 
-numeric_traits <- trait_col[trait_col != "pubescence"]
+numeric_traits <- trait_col[trait_col != "pubescence"] # exclude pubescence (factor)
 
 cor_matrix <- cor(Shared_spp_df02[numeric_traits], use = "pairwise.complete.obs")
 
@@ -248,21 +249,19 @@ corrplot(cor_matrix, method = "pie", type = "upper", tl.cex = 0.7)
 
 cor_table <- as.data.frame(as.table(cor_matrix))
 print(cor_table)
+# write.xlsx(cor_table, "Trait_Correlation_Table.xlsx")
 
-# run another corr based on the 18 remaining traits
+# run another cor.matrix based on the 18 remaining traits
 numeric_traitscorr2 <- c(
   "height_cm",  "canopy_area_cm2","branch_order", "leaf_area_cm2", "leaf_length_cm", 
-  "leaf_thickness_mm", "lwr", "num_leaves", "percent_C",  #pubescence not numberic but factor/chacter
+  "leaf_thickness_mm", "lwr", "num_leaves", "percent_C",  #pubescence not numeric but factor
   "percent_N", "d_13C_12C", "d_15N_14N", "FMC_proportion", "succulence", 
   "ldmc", "leaf_fresh_wgt_g", "leaf_dry_wgt_g", "lma")
   
 
-cor_matrix2 <- cor(Shared_spp_df02[numeric_traitscorr2], use = "pairwise.complete.obs")
+cor_matrix_reduced<- cor(Shared_spp_df02[numeric_traitscorr2], use = "pairwise.complete.obs")
 
-corrplot(cor_matrix2, method = "pie", type = "upper", tl.cex = 0.7)
-
-
-# write.xlsx(cor_table, "Trait_Correlation_Table.xlsx")
+corrplot(cor_matrix_reduced, method = "pie", type = "upper", tl.cex = 0.7)
 
 
 ############################### Statistical modelling - lmer ###################
@@ -323,11 +322,11 @@ summary(PostBurnM1)
 
 r.squaredGLMM(PostBurnM1)
 
-#
-#lmer with 19/28 traits reduced from cormatrix
+
+################## lmer with 19/28 traits reduced from cormatrix ##############
 IgnTime2 <- lmer(
   IgnTime ~ 
-    height_cm + canopy_area_cm2 + branch_order + leaf_area_cm2 + leaf_length_cm +
+  height_cm + canopy_area_cm2 + branch_order + leaf_area_cm2 + leaf_length_cm +
   leaf_thickness_mm + lwr + num_leaves + percent_C + pubescence + 
   percent_N + d_13C_12C + d_15N_14N + FMC_proportion + succulence + ldmc + 
   leaf_fresh_wgt_g + leaf_dry_wgt_g + lma +
@@ -335,6 +334,7 @@ IgnTime2 <- lmer(
   data = Shared_spp_df02,
   REML = FALSE
 )
+
 summary(IgnTime2)
 
 r.squaredGLMM(IgnTime2)
@@ -393,7 +393,7 @@ summary(MaxTemp2_best)
 r.squaredGLMM(MaxTemp2_best)
 
 
-##################################### visualise ###############################
+##################################### visualize ###############################
 
 ggplot(Shared_spp_df02, aes(x = FMC_proportion, y = IgnTime)) +
   geom_point(alpha = 0.4) +
@@ -424,7 +424,7 @@ Shared_spp_df02 %>%
 
 ################################# Statistical modelling - lm ###################
 
-# run full model lm with reduced collinearity 
+# run model lm with reduced collinearity 
 # IGNITABILITY full model and species not random
 IgnTime3 <- lm(
   IgnTime ~ 
@@ -437,15 +437,6 @@ IgnTime3 <- lm(
 
 summary(IgnTime3)
 
-# effect plot for only significant traits
-library(effects)
-
-plot(allEffects(IgnTime3), select = "FMC_proportion", partial.residuals = TRUE)
-plot(allEffects(IgnTime3), select = "species_name")
-
-#
-plot(allEffects(MaxTemp3), select = "FMC_proportion", partial.residuals = TRUE)
-
 #
 MaxTemp3 <- lm(
   MaxTemp ~ 
@@ -457,8 +448,7 @@ MaxTemp3 <- lm(
 )
 summary(MaxTemp3)
 
-vif(MaxTemp3)
-
+#vif(MaxTemp3)
 
 #
 PostBurnM3 <- lm(
@@ -471,25 +461,33 @@ PostBurnM3 <- lm(
 )
 summary(PostBurnM3)
 
-vif(PostBurnM3)
+
+# effect plot for only significant traits
+library(effects)
+
+plot(allEffects(IgnTime3), select = "FMC_proportion", partial.residuals = TRUE)
+plot(allEffects(IgnTime3), select = "species_name")  #must rotate spp names
+
+#
+plot(allEffects(MaxTemp3), select = "FMC_proportion", partial.residuals = TRUE)
 
 
 ########################################RQ2
 ################################### Growth form model lmer #####################
 
 # Is plant flammability better explained by continuous trait variation or by categorical growth form?
-gf_MaxTemp  <- lmer(`MaxTemp` ~ growth_form_2 + (1|species_name), 
-                    data = Shared_spp_df02, REML = FALSE)
-
-gf_PostBurnM <- lmer(`PostBurnM` ~ growth_form_2  + (1|species_name), 
-                     data = Shared_spp_df02, REML = FALSE)
-
 gf_IgnTime  <- lmer(`IgnTime` ~ growth_form_2  + (1|species_name), 
                     data = Shared_spp_df02, REML = FALSE)
+summary(gf_IgnTime)
 
 #
-summary(gf_IgnTime)
+gf_MaxTemp  <- lmer(`MaxTemp` ~ growth_form_2 + (1|species_name), 
+                    data = Shared_spp_df02, REML = FALSE)
 summary(gf_MaxTemp)
+
+#
+gf_PostBurnM <- lmer(`PostBurnM` ~ growth_form_2  + (1|species_name), 
+                     data = Shared_spp_df02, REML = FALSE)
 summary(gf_PostBurnM)
 
 #
@@ -503,18 +501,17 @@ gf_IgnTime3  <- lm (`IgnTime` ~ growth_form_2 + species_name,
                      data = Shared_spp_df02)
 summary(gf_IgnTime3)
 
-
+#
 gf_MaxTemp3  <- lm (`MaxTemp` ~ growth_form_2 + species_name, 
                     data = Shared_spp_df02)
 summary(gf_MaxTemp3)
 
-
+#
 gf_PostBurnM3 <- lm (`PostBurnM` ~ growth_form_2 + species_name, 
                      data = Shared_spp_df02)
 summary(gf_PostBurnM3)
 
-
-#
+################################ visualize gf #######################
 ggplot(Shared_spp_df02, aes(x = growth_form_2, y = IgnTime, fill = growth_form_2)) +
   geom_boxplot(alpha = 0.6) +
     labs(
@@ -525,14 +522,29 @@ ggplot(Shared_spp_df02, aes(x = growth_form_2, y = IgnTime, fill = growth_form_2
   theme_minimal() +
   theme(legend.position = "none")
 
+#
+ggplot(Shared_spp_df02, aes(x = growth_form_2, y = MaxTemp, fill = growth_form_2)) +
+  geom_boxplot(alpha = 0.6) +
+  labs(
+    x = "Growth Form",
+    y = "Max Temp",
+    title = ""
+  ) +
+  theme_minimal() +
+  theme(legend.position = "none")
 
+#
+ggplot(Shared_spp_df02, aes(x = growth_form_2, y = PostBurnM, fill = growth_form_2)) +
+  geom_boxplot(alpha = 0.6) +
+  labs(
+    x = "Growth Form",
+    y = "Post burn mass",
+    title = ""
+  ) +
+  theme_minimal() +
+  theme(legend.position = "none")
 
-#########################################xxxxx#################
-<<<<<<< HEAD
-########################
-=======
-
->>>>>>> 1993faec244a5d6750d2d6a90e617c13ed8162bb
+###must figure facetwrap.
 
 
 ##################################################################
@@ -618,7 +630,6 @@ fviz_pca_ind(species_pca,
            title        = "PCA of Species-Mean Traits"
 )
 
-
 #trait loadings included
 fviz_pca_biplot(
   species_pca,
@@ -647,7 +658,6 @@ fviz_pca_biplot(
   title       = "PCA Biplot: Species Means & Trait Loadings"
 )
 
-
 # flam traits pca only
 flamm_means <- Shared_spp_df02 %>%
   group_by(species_name) %>%
@@ -667,8 +677,7 @@ fviz_pca_biplot(
   title       = "PCA of Flammability Traits"
 )
 
-#
-# 
+########## 
 
 
 
