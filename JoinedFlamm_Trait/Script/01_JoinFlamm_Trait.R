@@ -51,7 +51,7 @@ unique(Fieldtrait$subregion)
 # which species are shared between Flamm and Fieldtrait df
 shared_species <- intersect(unique(Flamm$Accepted_name), 
                             unique(Fieldtrait$scientific_name_WFO))
-                         #33 shared, not bad ..19??
+                                            #33 shared, not bad ..19??
 print(shared_species)
 
 # create a new df of just shared species from each df 
