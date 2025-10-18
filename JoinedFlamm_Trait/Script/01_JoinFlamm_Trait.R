@@ -6,6 +6,7 @@
 ## Flamm is flammability experiments data 
 ### Fieldtrait and Labtrait are Henrys leaf trait data
 
+
 library(tidyverse)
 library(readxl)
 library(lme4)
@@ -37,7 +38,7 @@ colnames(Fieldtrait)
 
 colnames(Flamm)
 
-# see Unique species from flammability & field leaf data
+# find unique (different) species from flammability & field leaf data
 unique(Flamm$Accepted_name) #52 species 
 
 unique(Fieldtrait$scientific_name_WFO)  #1000+ species 
