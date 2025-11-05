@@ -676,7 +676,13 @@ fviz_pca_biplot(
   title       = "PCA of Flammability Traits"
 )
 
+
+
 ########## 
+### 20251105
+## Beta regression
+# 
+
 
 
 
