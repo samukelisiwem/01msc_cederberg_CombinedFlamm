@@ -14,21 +14,20 @@ library(car)
 library(lmerTest)
 library(corrplot)
 
-# cederberg and george data combined 
-Flamm <- read_csv("Data/CombinedOG.csv")
 
-# henry field trait data
-Fieldtrait <- read.csv("Data/Field_Traits_Final.csv") 
-
+##########################################
 # making lowercase and trimming spaces in species names 
-Flamm <- Flamm %>%
-  mutate(Accepted_name = tolower(trimws(Accepted_name)))
+#Flamm <- Flamm %>%
+ # mutate(Accepted_name = tolower(trimws(Accepted_name)))
 
-Fieldtrait <- Fieldtrait %>%
-  mutate(scientific_name_WFO = tolower(trimws(scientific_name_WFO)))
+#Fieldtrait <- Fieldtrait %>%
+ # mutate(scientific_name_WFO = tolower(trimws(scientific_name_WFO)))
 
 
-########################## Exploratory data analysis ##########################
+################
+
+
+################################### Exploratory data analysis ##########################
 
 str(Flamm)
 
@@ -76,7 +75,6 @@ colnames(Shared_spp_df01)
 # Join Labtrait data to this shared_spp_df01 and create a new Shared_spp_02
 # Shared_spp_df02 will have all flammability traits and leaf traits (field and Lab measured)
 
-Labtrait <- read.csv("Data/Lab_Traits_Final.csv")
 
 # make lower case and spacing
 Labtrait <- Labtrait %>%
@@ -98,6 +96,58 @@ Shared_spp_df02 <- Shared_spp_df01 %>%
 colnames(Shared_spp_df02)
 
 length(unique(Shared_spp_df02$species_name)) #how many different spp
+
+
+### join FlammAP with shared_sppdf02
+# 
+FlammAP <- FlammAP %>%
+  mutate(Species = tolower(trimws(Species)))
+
+#see shared species
+
+flammshared03 <- intersect(unique(Fieldtrait$scientific_name_WFO), 
+                         unique(FlammAP$Species)) 
+
+length(flammshared03)   
+print(flammshared03)   #11 species but 3 are already in the original flammdata (MSC)
+
+
+#filter shared species from each
+filtered_flammshared03 <- FlammAP %>%
+  filter(Species%in% flammshared03)
+
+
+filtered_fieldtrait <- Fieldtrait %>%
+  filter(scientific_name_WFO %in% flammshared03)
+
+
+#join
+filterdFlamm <- left_join(
+  filtered_flammshared03,
+  filtered_fieldtrait,
+  by = c("Species" = "scientific_name_WFO")
+)
+
+unique(filterdFlamm$`Species`)
+
+
+# now i must join filterdFlamm with Shared_spp_df02 = megaFlamm
+#
+#megaFlamm <- filterdFlamm %>%
+  filter(!Species %in% c("sideroxylon inerme",   # to avoid duplicating or replacing values, remove the 3 species when joining
+                         "cassine peragua",
+                         "pterocelastrus tricuspidatus")) %>%
+  left_join(Shared_spp_df02, by = c("Species" = "Accepted_name"))
+
+#
+unique(megaFlamm$`Species`)
+
+
+
+
+#the current flamm with all trait data
+print(unique(Shared_spp_df02$species_name))
+
 
 # how many spp from each growth form
 sapply(split(Shared_spp_df02$species_name, Shared_spp_df02$growth_form), function(x) length(unique(x)))
@@ -230,9 +280,10 @@ mass_traits <- c(
 # alias columns for my responses (avoiding % and () in names)
 Shared_spp_df02 <- Shared_spp_df02 |>
   dplyr::mutate(
+    IgnTime   = `TimeToFlaming(s)`,
     MaxTemp   = `MaximumFlameTemperature(°C)`,
-    PostBurnM = `PostBurntMassEstimate(%)`,
-    IgnTime   = `TimeToFlaming(s)`
+    PostBurnM = `PostBurntMassEstimate(%)`
+   
   )         #i see new columns we created not replaced
 
 
@@ -678,13 +729,336 @@ fviz_pca_biplot(
 
 
 
-########## 
+####################################################
+
 ### 20251105
-## Beta regression
+## Beta regression. https://cran.r-project.org/web//packages/betareg/vignettes/betareg.html
 # 
 
+#View histograms for all numeric columns
+numeric_cols <- sapply(Shared_spp_df02, is.numeric)
+
+par(mfrow = c(3, 3))  # adjust to number of vars
+for (col in names(Shared_spp_df02)[numeric_cols]) {
+  hist(Shared_spp_df02[[col]], main = col, xlab = "", col = "grey80")
+}
+par(mfrow = c(1, 1))
+
+#
+# Post-burn mass → proportion consumed
+Shared_spp_df02$Consumed01 <- (100 - Shared_spp_df02$PostBurnM) / 100
+
+# Ignition time → invert and scale
+max_time <- 120  # max time in seconds
+Shared_spp_df02$Ignite01 <- 1 - (Shared_spp_df02$IgnTime / max_time)
+
+# Max temperature → scale 0–1
+Shared_spp_df02$MaxTemp01 <- (Shared_spp_df02$MaxTemp - min(Shared_spp_df02$MaxTemp)) /
+  (max(Shared_spp_df02$MaxTemp) - min(Shared_spp_df02$MaxTemp))
 
 
+###
+#install.packages("statmod", "betareg")
+library(statmod)
+library(betareg)
+
+##without random effect 
+#Ignite01, Maxtemp01, Consumed01
+IgnTime_beta <- betareg(
+  Ignite01 ~ height_cm + canopy_area_cm2 + branch_order + leaf_area_cm2 + leaf_length_cm +
+    leaf_thickness_mm + lwr + num_leaves + percent_C + pubescence + 
+    percent_N + d_13C_12C + d_15N_14N + FMC_proportion + succulence + ldmc + 
+    leaf_fresh_wgt_g + leaf_dry_wgt_g + lma + species_name,
+  data = Shared_spp_df02
+)
+
+summary(IgnTime_beta)
+plot()
+
+#with random effect
+m_beta_re <- glmmTMB(
+  IgnTime ~ height_cm + canopy_area_cm2 + branch_order + leaf_area_cm2 + leaf_length_cm +
+    leaf_thickness_mm + lwr + num_leaves + percent_C + pubescence + 
+    percent_N + d_13C_12C + d_15N_14N + FMC_proportion + succulence + ldmc + 
+    leaf_fresh_wgt_g + leaf_dry_wgt_g + lma +
+    (1 | species_name),
+  family = beta_family(link = "logit"),
+  data = Shared_spp_df02
+)
 
 
+######################################################################
+################# Read all DATAs
 
+# cederberg and george data combined 
+#Flamm <- read_csv("Data/CombinedOG.csv")
+#colnames(Flamm) #Accepted_name
+
+# Alastair Potts (AP) Cape StF data]
+#FlammAP <- read_excel("Data/CapeStFrancis_Hons_FlammabilityData_AP.xlsx")
+#colnames(FlammAP) #"Species"
+
+# henry field trait data
+#Fieldtrait <- read.csv("Data/Field_Traits_Final.csv") 
+#colnames(Fieldtrait) #"scientific_name_WFO"
+
+# lab trait
+#Labtrait <- read.csv("Data/Lab_Traits_Final.csv")
+#colnames(Labtrait)  ##"scientific_name_WFO"
+
+# 
+# make all species columns SpeciesNames in all df
+#Flamm      <- Flamm      |> rename(SpeciesNames = Accepted_name)
+#FlammAP    <- FlammAP    |> rename(SpeciesNames = Species)
+#Fieldtrait <- Fieldtrait |> rename(SpeciesNames = scientific_name_WFO)
+#Labtrait   <- Labtrait   |> rename(SpeciesNames = scientific_name_WFO)
+
+# make all lower cases
+#Flamm$SpeciesNames      <- tolower(Flamm$SpeciesNames)
+#FlammAP$SpeciesNames    <- tolower(FlammAP$SpeciesNames)
+#Fieldtrait$SpeciesNames <- tolower(Fieldtrait$SpeciesNames)
+#Labtrait$SpeciesNames   <- tolower(Labtrait$SpeciesNames)
+
+#unique(Flamm$SpeciesNames) #52 species
+#length (unique(FlammAP$SpeciesNames)) #26
+#length(unique(Fieldtrait$SpeciesNames)) #1327
+#unique(Labtrait$SpeciesNames) #1327
+
+
+# see shared species on Flamms
+#shared_species_flamm <- intersect(
+ # tolower(Flamm$SpeciesNames),
+  #tolower(FlammAP$SpeciesNames)
+#)
+
+#shared_species_flamm
+
+#remove the 4 shared species from AP
+#FlammAP_filtered <- FlammAP |> 
+ # filter(!tolower(SpeciesNames) %in% shared_species_flamm)
+
+#unique(FlammAP_filtered$SpeciesNames) #22
+
+#
+## combine the flamm df
+#Flamm_all <- bind_rows(Flamm, FlammAP_filtered)
+#unique(Flamm_all$SpeciesNames) #74
+
+#
+## combine all trait df
+#Trait_all <- left_join(Fieldtrait, Labtrait, by = "SpeciesNames")
+
+#unique(Trait_all$SpeciesNames) #1000+
+
+#
+# save all both combined
+# writexl::write_xlsx(Flamm_all, "Data/Flamm_all.xlsx")
+
+# writexl::write_xlsx(Trait_all, "Data/Trait_all.xlsx")
+
+Flamm_all <- read_excel("Data/Flamm_all.xlsx")
+Trait_all <- read_excel("Data/Trait_all.xlsx")
+
+colnames(Flamm_all)
+
+# alias columns for my responses (avoiding % and () in names)
+Flamm_all <- Flamm_all |>
+  dplyr::mutate(
+    IgnTime   = `TimeToFlaming(s)`,
+    MaxTemp   = `MaximumFlameTemperature(°C)`,
+    PostBurnM = `PostBurntMassEstimate(%)`
+    
+  )         #i see new columns we created not replaced
+
+#see shared species between flamm and trait all
+shared_species_all <- intersect(Flamm_all$SpeciesNames, Trait_all$SpeciesNames)
+shared_species_all
+
+length(shared_species_all)   #41
+
+#now join Flamm All and trait all by shares species 
+megadata <- inner_join(Flamm_all, Trait_all, by = "SpeciesNames")
+
+colnames(megadata)
+unique(megadata$SpeciesNames)
+
+sapply(megadata, class)
+
+# histogram view 
+numeric_col <- sapply(megadata, is.numeric)
+
+#histoCol <- c("IgnTime", "MaxTemp", "PostBurnM", "FMC(%)",
+#"canopy_axis_1_cm", "canopy_area_cm2", "pubescence", 
+#"percent_C", "d_15N_14N", "leaf_area_cm2", 
+#"avg_leaf_width_cm", "leaf_thickness_mm", "leaf_dry_wgt_g",
+#"twig_dry_g", "fwc", "ldmc", "twig_fwc", "height_cm",
+#"canopy_axis_2_cm", "branch_order", "percent_N",
+#"C_to_N_ratio", "d_13C_12C", "num_leaves", "leaf_length_cm",
+#"max_leaf_width_cm", "leaf_fresh_wgt_g", "twig_fresh_g",
+#"lma", "succulence", "lwr")
+
+par(mfrow = c(3, 3))                  # 9 plots per page
+for (col in names(megadata)[numeric_col]) {
+  hist(megadata[[col]], main = col, xlab = "", col = "grey80")
+}
+par(mfrow = c(1, 1))
+
+## SCALE TO 0–1 
+# Ignition time (invert so fast ignition = higher value)
+max_time <- 120
+megadata$IgnTime01 <- 1 - (megadata$IgnTime / max_time)
+
+# Max temperature (min–max scaling)
+temp_range <- range(megadata$MaxTemp, na.rm = TRUE)
+megadata$MaxTemp01 <- (megadata$MaxTemp - temp_range[1]) / diff(temp_range)
+
+# Post-burn mass -> proportion consumed
+megadata$PostBurnM01 <- (100 - megadata$PostBurnM) / 100
+
+#
+## CLAMP TO AVOID 0 OR 1 
+
+eps <- 1e-6  
+
+clampFlamm <- c("IgnTime01", "MaxTemp01", "PostBurnM01")
+
+megadata[clampFlamm] <- lapply(megadata[clampFlamm], function(x)
+  pmin(pmax(x, eps), 1 - eps)
+)
+
+summary(megadata[clampFlamm])
+
+# Should all return FALSE:
+sapply(megadata[clampFlamm], function(x) any(x <= 0 | x >= 1, na.rm = TRUE))
+
+#
+# showing correlation coefficients (-1 inverse relationship red and 1 positive blue)
+str(megadata[numeric_traits01])
+
+# exclude pubescence and num_leaves (factor)
+numeric_traits01 <- trait_col[!trait_col %in% c("pubescence", "num_leaves")]
+
+cor_matrix01 <- cor(megadata[numeric_traits01], use = "pairwise.complete.obs")
+
+corrplot(cor_matrix01, method = "pie", type = "upper", tl.cex = 0.7)
+
+#after cormatrix 16 
+trait_col_reduced <- c(
+  "height_cm", "canopy_area_cm2",  # 08 Field traits 
+  "branch_order", "pubescence", "percent_N", "percent_C",
+  "d_15N_14N", "d_13C_12C",
+  
+  "FMC_proportion", "num_leaves", "leaf_area_cm2",  # 8 Lab traits
+  "lma", "fwc", "succulence", "ldmc", "lwr"
+)
+
+#
+#
+megadata <- megadata %>%
+  mutate(
+    pubescence   = as.factor(pubescence),
+    num_leaves   = readr::parse_number(as.character(num_leaves)),
+    branch_order = as.numeric(branch_order)  
+  )        
+
+ #
+ ## scale() traits for the following steps 
+ megadata <- megadata %>%
+   mutate(across(all_of(trait_col) & where(is.numeric), ~ as.numeric(scale(.))))
+ 
+ # check if trait were scaled 
+ sapply(megadata[trait_col], function(x) {
+   if (is.numeric(x)) c(mean = mean(x, na.rm = TRUE),
+                        sd   = sd(x, na.rm = TRUE))
+   else NA
+ })
+
+ 
+ ### betareg
+ 
+ # IgnTimeXY_beta <- betareg(
+ #   IgnTime01 ~
+ #     species_name,
+ #   data = megadata
+ # )
+ # summary(IgnTimeXY_beta)
+ # plot(IgnTimeXY_beta)
+ 
+ library(betareg)
+ 
+ IgnTime01_beta <- betareg(
+   IgnTime01 ~ height_cm + canopy_area_cm2 + branch_order +
+     pubescence + percent_N + percent_C + d_15N_14N + d_13C_12C + 
+     FMC_proportion + num_leaves +leaf_area_cm2 + lma +
+     fwc + succulence + ldmc + lwr + SpeciesNames,
+   data = megadata
+ )
+ 
+ summary(IgnTime01_beta)
+ plot(IgnTime01_beta)
+ 
+# install.packages("glmmTMB")
+library(glmmTMB)
+ 
+ traits_size   <- c("height_cm", "canopy_area_cm2", "branch_order")
+ traits_leaf   <- c("leaf_area_cm2", "lma", "ldmc", "lwr", "num_leaves")
+ traits_chem   <- c("percent_N", "percent_C", "d_15N_14N", "d_13C_12C", "succulence", "FMC_proportion")
+ traits_misc   <- c("fwc", "pubescence")  
+ 
+#
+## species as random
+ IgnTMB <- glmmTMB(
+   IgnTime01 ~ height_cm + canopy_area_cm2 + branch_order +
+     pubescence + percent_N + percent_C + d_15N_14N + d_13C_12C + 
+     FMC_proportion + num_leaves + leaf_area_cm2 + lma +
+     fwc + succulence + ldmc + lwr +
+     (1 | SpeciesNames),
+   data   = megadata,
+   family = beta_family(link = "logit")
+ )
+ summary(IgnTMB)
+
+ library(ggeffects)
+ 
+ # Compute marginal effects for all predictors
+ eff <- ggpredict(IgnTMB, terms = c("height_cm", "canopy_area_cm2",
+                                    "branch_order", "pubescence",
+                                    "percent_N", "percent_C",
+                                    "d_15N_14N", "d_13C_12C",
+                                    "FMC_proportion", "num_leaves",
+                                    "leaf_area_cm2", "lma", "fwc",
+                                    "succulence", "ldmc", "lwr"))
+ 
+ # Plot
+ plot(eff)
+ 
+ #
+ #
+ #
+ 
+ 
+ Igm1 <- glmmTMB(IgnTime01 ~ height_cm + canopy_area_cm2 + branch_order +
+                  (1 | SpeciesNames),
+                data = megadata,
+              family = beta_family(link = "logit")
+)          
+summary(Igm1)
+
+# table(megadata$IgnTime01)
+# range(megadata$IgnTime01, na.rm = TRUE)
+
+
+#
+##
+Igm2 <- glmmTMB(IgnTime01 ~ . +
+                 (1 | SpeciesNames),
+               data = megadata[, c("IgnTime01", traits_leaf, "SpeciesNames")],
+               family = beta_family(link = "logit"))
+ 
+Igm3 <- glmmTMB(IgnTime01 ~ . +
+                 (1 | SpeciesNames),
+               data = megadata[, c("IgnTime01", traits_chem, "SpeciesNames")],
+               family = beta_family(link = "logit"))
+ 
+ 
+ summary(IgnTime01_beta)
