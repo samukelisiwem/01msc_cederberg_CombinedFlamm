@@ -1,0 +1,64 @@
+###############################################################################################
+Flammability study of Fynbos and Thicket/Forest species at Cape St Francis
+###############################################################################################
+Dates: 17-19 February 2016
+
+Majority sampled on Wednesday 17 February.
+No rainfall in preceding two weeks, but there was some rainfall on Thursday 18 Feb. 
+Only garden plants were sampled on Friday 19 February.
+
+
+Biome = vegetation type within which a species is common and associated.
+Note that Rapanea gilliana and Olea exasperata were also found in the Fynbos, however, these
+are considered early pioneers of the Thicket as they are obligate reseeders and fit the Thicket
+biology (RMC, pers. comm. 2016).
+
+Stem = grows as a single or multi-stemmed species. The assumption is that multi-stemmed 
+       species resprout from underground storage organs and that multi-stemmed individuals
+       have experienced a previous fire. Exclusively single stemmed species are assumed 
+       to not have resprouting capabilities and thus are removed by fire.
+
+Species = current species name.
+SppAbbrev = abbreviated species name - first three letters of the genus and species epithet.
+
+------------------------------------------------------------------------------------------------
+Flammability measurements
+------------------------------------------------------------------------------------------------
+Three replicates per species, and each of the measurements below were recored per replicate
+
+MT = Maximum Temperature (degrees C; 800 degrees is maximum measured on the IR temperature gun)
+BL = Burnt length (cm)
+BT = Burn time (seconds)
+BB = Burnt biomass (categorical visual estimation)
+	1: <1%
+	2: 1-10%
+	3: 11-25%
+	4: 26-50%
+	5: 51-75%
+	6: 76-100%
+------------------------------------------------------------------------------------------------
+Plant flammability trait measurements
+------------------------------------------------------------------------------------------------
+% Breakdown of live and dead biomass of a branch by size (width) %
+Three replicates (branch) per species.
+
+LM3mm   = live material less than 3 mm in width (g)
+LM3_6mm = live material between 3 and 6 mm (g)
+LM6mm   = live material greater than 6mm in width (g)
+DM3mm   = dead material less than 3 mm in width (g) 
+DM3_6mm = dead material between 3 and 6 mm in width (g)
+DM6mm   = dead material greater than 6mm in widht (g)
+
+% Moisture and Fuel Bed Porosity %
+Three replicates per species
+
+FreshWt     = the fresh weight of the sample plus brown bag weight
+DryWt       = the oven dried weight of the sample weight plus brown bag weight
+BrLen       = branch length (cm)
+MaxBrWidth  = maximum branch width measured perpendicular to branch length (cm)
+BagID       = used to keep track of the labelled bag
+
+Notes:      The average weight of brown bags was 9.7g
+
+	
+	

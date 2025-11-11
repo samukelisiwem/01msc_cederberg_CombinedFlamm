@@ -14,14 +14,21 @@ library(car)
 library(lmerTest)
 library(corrplot)
 
+#######################################
+#read in leaf field trait data 
+Flamm <- read_xlsx("Data/")
+
+Fieldtrait <- read.csv("Data/Field_Traits_Final.csv") 
+
+Labtrait <- read.csv("Data/HenryF/Lab_Traits_Final.csv")
 
 ##########################################
-# making lowercase and trimming spaces in species names 
-#Flamm <- Flamm %>%
- # mutate(Accepted_name = tolower(trimws(Accepted_name)))
-
-#Fieldtrait <- Fieldtrait %>%
- # mutate(scientific_name_WFO = tolower(trimws(scientific_name_WFO)))
+# making lowercase and trimming spaces in species names
+# Flamm <- Flamm %>%
+# mutate(Accepted_name = tolower(trimws(Accepted_name)))
+# 
+# Fieldtrait <- Fieldtrait %>%
+# mutate(scientific_name_WFO = tolower(trimws(scientific_name_WFO)))
 
 
 ################
@@ -790,74 +797,131 @@ m_beta_re <- glmmTMB(
 ######################################################################
 ################# Read all DATAs
 
-# cederberg and george data combined 
-#Flamm <- read_csv("Data/CombinedOG.csv")
-#colnames(Flamm) #Accepted_name
+# cederberg and george data combined
+Flamm <- read_csv("Data/CombinedOG.csv")
+colnames(Flamm) #Accepted_name
+
+anyNA(Flamm) #any NA
+names(Flamm)[colSums(is.na(Flamm)) > 0] #which var has NA
 
 # Alastair Potts (AP) Cape StF data]
-#FlammAP <- read_excel("Data/CapeStFrancis_Hons_FlammabilityData_AP.xlsx")
-#colnames(FlammAP) #"Species"
+FlammAP <- read_excel("Data/CapeStFrancis_Hons_FlammabilityData_AP.xlsx")
+colnames(FlammAP) #"Species"
+
+anyNA(FlammAP) #any NA
+names(FlammAP)[colSums(is.na(FlammAP)) > 0] #which var has NA
 
 # henry field trait data
-#Fieldtrait <- read.csv("Data/Field_Traits_Final.csv") 
-#colnames(Fieldtrait) #"scientific_name_WFO"
+Fieldtrait <- read.csv("Data/Field_Traits_Final.csv")
+colnames(Fieldtrait) #"scientific_name_WFO"
+
+anyNA(Fieldtrait) #any NA
+names(Fieldtrait)[colSums(is.na(Fieldtrait)) > 0] #which var has NA
+
+nrow(Fieldtrait)   # how many observations
+ncol(Fieldtrait)   # how many variables
+
+colSums(is.na(Fieldtrait)) #NA per column
+
+Fieldtrait_noNA <- na.omit(Fieldtrait)
+nrow(Fieldtrait_noNA)   # how many observations
+ncol(Fieldtrait_noNA) 
 
 # lab trait
-#Labtrait <- read.csv("Data/Lab_Traits_Final.csv")
-#colnames(Labtrait)  ##"scientific_name_WFO"
+Labtrait <- read.csv("Data/Lab_Traits_Final.csv")
+colnames(Labtrait)  ##"scientific_name_WFO"
+
+anyNA(Labtrait) #any NA
+names(Labtrait)[colSums(is.na(Labtrait)) > 0] #which var has NA
+
+nrow(Labtrait)   # how many observations
+ncol(Labtrait)   # how many variables
+
+colSums(is.na(Labtrait)) #NA per column
+
+Labtrait_noNA <- na.omit(Labtrait)
+nrow(Labtrait_noNA)   # how many observations
+ncol(Labtrait_noNA) 
+
 
 # 
 # make all species columns SpeciesNames in all df
-#Flamm      <- Flamm      |> rename(SpeciesNames = Accepted_name)
-#FlammAP    <- FlammAP    |> rename(SpeciesNames = Species)
-#Fieldtrait <- Fieldtrait |> rename(SpeciesNames = scientific_name_WFO)
-#Labtrait   <- Labtrait   |> rename(SpeciesNames = scientific_name_WFO)
+Flamm      <- Flamm      |> rename(SpeciesNames = Accepted_name)
+FlammAP    <- FlammAP    |> rename(SpeciesNames = Species)
+Fieldtrait <- Fieldtrait |> rename(SpeciesNames = scientific_name_WFO)
+Labtrait   <- Labtrait   |> rename(SpeciesNames = scientific_name_WFO)
+
+Fieldtrait_noNA <- Fieldtrait_noNA |> rename(SpeciesNames = scientific_name_WFO)
+Labtrait_noNA <- Labtrait_noNA   |> rename(SpeciesNames = scientific_name_WFO)
+
 
 # make all lower cases
-#Flamm$SpeciesNames      <- tolower(Flamm$SpeciesNames)
-#FlammAP$SpeciesNames    <- tolower(FlammAP$SpeciesNames)
-#Fieldtrait$SpeciesNames <- tolower(Fieldtrait$SpeciesNames)
-#Labtrait$SpeciesNames   <- tolower(Labtrait$SpeciesNames)
+ Flamm$SpeciesNames      <- tolower(Flamm$SpeciesNames)
+ FlammAP$SpeciesNames    <- tolower(FlammAP$SpeciesNames)
+ Fieldtrait$SpeciesNames <- tolower(Fieldtrait$SpeciesNames)
+ Labtrait$SpeciesNames   <- tolower(Labtrait$SpeciesNames)
 
-#unique(Flamm$SpeciesNames) #52 species
-#length (unique(FlammAP$SpeciesNames)) #26
-#length(unique(Fieldtrait$SpeciesNames)) #1327
-#unique(Labtrait$SpeciesNames) #1327
+ Labtrait_noNA$SpeciesNames       <- tolower(Labtrait_noNA$SpeciesNames)
+ Fieldtrait_noNA$SpeciesNames       <- tolower(Fieldtrait_noNA$SpeciesNames)
+
+ unique(Flamm$SpeciesNames) #52 species
+ length (unique(FlammAP$SpeciesNames)) #26
+
+ length(unique(Fieldtrait$SpeciesNames)) #1327
+ unique(Labtrait$SpeciesNames) #1327
+
+ length(unique(Fieldtrait_noNA$SpeciesNames)) #1039
+ unique(Labtrait_noNA$SpeciesNames) #986
 
 
 # see shared species on Flamms
-#shared_species_flamm <- intersect(
- # tolower(Flamm$SpeciesNames),
-  #tolower(FlammAP$SpeciesNames)
-#)
+shared_species_flamm <- intersect(
+tolower(Flamm$SpeciesNames),
+tolower(FlammAP$SpeciesNames)
+)
 
-#shared_species_flamm
+shared_species_flamm
 
-#remove the 4 shared species from AP
-#FlammAP_filtered <- FlammAP |> 
- # filter(!tolower(SpeciesNames) %in% shared_species_flamm)
+# remove the 4 shared species from AP
+FlammAP_filtered <- FlammAP |>
+  filter(!tolower(SpeciesNames) %in% shared_species_flamm)
 
-#unique(FlammAP_filtered$SpeciesNames) #22
+unique(FlammAP_filtered$SpeciesNames) #22
 
-#
-## combine the flamm df
-#Flamm_all <- bind_rows(Flamm, FlammAP_filtered)
-#unique(Flamm_all$SpeciesNames) #74
+# combine the flamm df
+Flamm_all <- bind_rows(Flamm, FlammAP_filtered)
+unique(Flamm_all$SpeciesNames) #74
+
+
+Flamm_all <- Flamm_all %>%
+   mutate(`PostBurntMassEstimate(%)` = coalesce(`PostBurntMassEstimate(%)`, `BB_%`))
+
+Flamm_all <- Flamm_all %>%
+  mutate(`MaximumFlameTemperature(°C)` = coalesce(`MaximumFlameTemperature(°C)`, `MT`))
+
+Flamm_all <- Flamm_all %>%
+  mutate(`FMC(%)` = coalesce(`FMC(%)`, `Moisture_Content`))
 
 #
 ## combine all trait df
-#Trait_all <- left_join(Fieldtrait, Labtrait, by = "SpeciesNames")
+Trait_all <- left_join(Fieldtrait, Labtrait, by = "SpeciesNames")
+unique(Trait_all$SpeciesNames) #1000+
 
-#unique(Trait_all$SpeciesNames) #1000+
+Trait_all_noNA <- left_join(Fieldtrait_noNA, Labtrait_noNA, by = "SpeciesNames")
+unique(Trait_all_noNA$SpeciesNames) #
 
-#
+
 # save all both combined
 # writexl::write_xlsx(Flamm_all, "Data/Flamm_all.xlsx")
-
+# 
 # writexl::write_xlsx(Trait_all, "Data/Trait_all.xlsx")
+# 
+# writexl::write_xlsx(Trait_all_noNA, "Data/Trait_all_noNA.xlsx")
 
-Flamm_all <- read_excel("Data/Flamm_all.xlsx")
+
+Flamm_allNew <- read_excel("Data/Flamm_all_new.xlsx")
 Trait_all <- read_excel("Data/Trait_all.xlsx")
+Trait_all_noNA <- read_excel("Data/Trait_all_noNA.xlsx")
 
 colnames(Flamm_all)
 
@@ -1049,16 +1113,3 @@ summary(Igm1)
 
 
 #
-##
-Igm2 <- glmmTMB(IgnTime01 ~ . +
-                 (1 | SpeciesNames),
-               data = megadata[, c("IgnTime01", traits_leaf, "SpeciesNames")],
-               family = beta_family(link = "logit"))
- 
-Igm3 <- glmmTMB(IgnTime01 ~ . +
-                 (1 | SpeciesNames),
-               data = megadata[, c("IgnTime01", traits_chem, "SpeciesNames")],
-               family = beta_family(link = "logit"))
- 
- 
- summary(IgnTime01_beta)
