@@ -14,45 +14,160 @@ library(car)
 library(lmerTest)
 library(corrplot)
 
-#######################################
-#read in leaf field trait data 
-Flamm <- read_xlsx("Data/")
 
-Fieldtrait <- read.csv("Data/Field_Traits_Final.csv") 
+######################################################################
+################# Read all DATAs
 
-Labtrait <- read.csv("Data/HenryF/Lab_Traits_Final.csv")
+# cederberg and george data combined
+Flamm <- read_csv("Data/CombinedOG.csv")
+colnames(Flamm) #Accepted_name
 
-##########################################
-# making lowercase and trimming spaces in species names
-# Flamm <- Flamm %>%
-# mutate(Accepted_name = tolower(trimws(Accepted_name)))
+anyNA(Flamm) #any NA
+names(Flamm)[colSums(is.na(Flamm)) > 0] #which var has NA
+
+# Alastair Potts (AP) Cape StF data]
+FlammAP <- read_excel("Data/CapeStFrancis_Hons_FlammabilityData_AP.xlsx")
+colnames(FlammAP) #"Species"
+
+anyNA(FlammAP) #any NA
+names(FlammAP)[colSums(is.na(FlammAP)) > 0] #which var has NA
+
+# henry field trait data
+Fieldtrait <- read.csv("Data/Field_Traits_Final.csv")
+colnames(Fieldtrait) #"scientific_name_WFO"
+
+anyNA(Fieldtrait) #any NA
+names(Fieldtrait)[colSums(is.na(Fieldtrait)) > 0] #which var has NA
+
+nrow(Fieldtrait)   # how many observations
+ncol(Fieldtrait)   # how many variables
+
+colSums(is.na(Fieldtrait)) #NA per column
+
+Fieldtrait_noNA <- na.omit(Fieldtrait)
+nrow(Fieldtrait_noNA)   # how many observations
+ncol(Fieldtrait_noNA) 
+
+# lab trait
+Labtrait <- read.csv("Data/Lab_Traits_Final.csv")
+colnames(Labtrait)  ##"scientific_name_WFO"
+
+anyNA(Labtrait) #any NA
+names(Labtrait)[colSums(is.na(Labtrait)) > 0] #which var has NA
+
+nrow(Labtrait)   # how many observations
+ncol(Labtrait)   # how many variables
+
+colSums(is.na(Labtrait)) #NA per column
+
+Labtrait_noNA <- na.omit(Labtrait)
+nrow(Labtrait_noNA)   # how many observations
+ncol(Labtrait_noNA) 
+
+
 # 
-# Fieldtrait <- Fieldtrait %>%
-# mutate(scientific_name_WFO = tolower(trimws(scientific_name_WFO)))
+# make all species columns SpeciesNames in all df
+Flamm      <- Flamm      |> rename(SpeciesNames = Accepted_name)
+FlammAP    <- FlammAP    |> rename(SpeciesNames = Species)
+Fieldtrait <- Fieldtrait |> rename(SpeciesNames = scientific_name_WFO)
+Labtrait   <- Labtrait   |> rename(SpeciesNames = scientific_name_WFO)
+
+Fieldtrait_noNA <- Fieldtrait_noNA |> rename(SpeciesNames = scientific_name_WFO)
+Labtrait_noNA <- Labtrait_noNA   |> rename(SpeciesNames = scientific_name_WFO)
 
 
-################
+# make all lower cases
+Flamm$SpeciesNames      <- tolower(Flamm$SpeciesNames)
+FlammAP$SpeciesNames    <- tolower(FlammAP$SpeciesNames)
+Fieldtrait$SpeciesNames <- tolower(Fieldtrait$SpeciesNames)
+Labtrait$SpeciesNames   <- tolower(Labtrait$SpeciesNames)
+
+Labtrait_noNA$SpeciesNames       <- tolower(Labtrait_noNA$SpeciesNames)
+Fieldtrait_noNA$SpeciesNames       <- tolower(Fieldtrait_noNA$SpeciesNames)
+
+unique(Flamm$SpeciesNames) #52 species
+length (unique(FlammAP$SpeciesNames)) #26
+
+length(unique(Fieldtrait$SpeciesNames)) #1327
+unique(Labtrait$SpeciesNames) #1327
+
+length(unique(Fieldtrait_noNA$SpeciesNames)) #1039
+unique(Labtrait_noNA$SpeciesNames) #986
 
 
-################################### Exploratory data analysis ##########################
+# see shared species on Flamms
+shared_species_flamm <- intersect(
+  tolower(Flamm$SpeciesNames),
+  tolower(FlammAP$SpeciesNames)
+)
 
-str(Flamm)
+shared_species_flamm
 
-str(Fieldtrait)
+# remove the 4 shared species from AP
+FlammAP_filtered <- FlammAP |>
+  filter(!tolower(SpeciesNames) %in% shared_species_flamm)
 
-colnames(Fieldtrait)
+unique(FlammAP_filtered$SpeciesNames) #22
 
-colnames(Flamm)
-
-# find unique (different) species from flammability & field leaf data
-unique(Flamm$Accepted_name) #52 species 
-
-unique(Fieldtrait$scientific_name_WFO)  #1000+ species 
-
-unique(Fieldtrait$subregion)
+# combine the flamm df
+Flamm_all <- bind_rows(Flamm, FlammAP_filtered)
+unique(Flamm_all$SpeciesNames) #74
 
 
-################################ Merge datasets ################################
+Flamm_all <- Flamm_all %>%
+  mutate(`PostBurntMassEstimate(%)` = coalesce(`PostBurntMassEstimate(%)`, `BB_%`))
+
+Flamm_all <- Flamm_all %>%
+  mutate(`MaximumFlameTemperature(°C)` = coalesce(`MaximumFlameTemperature(°C)`, `MT`))
+
+Flamm_all <- Flamm_all %>%
+  mutate(`FMC(%)` = coalesce(`FMC(%)`, `Moisture_Content`))
+
+#
+## combine all trait df
+Trait_all <- left_join(Fieldtrait, Labtrait, by = "SpeciesNames")
+unique(Trait_all$SpeciesNames) #1000+
+
+Trait_all_noNA <- left_join(Fieldtrait_noNA, Labtrait_noNA, by = "SpeciesNames")
+unique(Trait_all_noNA$SpeciesNames) #
+
+
+# save all both combined
+#  writexl::write_xlsx(Flamm_all, "Output/Flamm_all.xlsx")
+# # 
+#  writexl::write_xlsx(Trait_all, "Output/Trait_all.xlsx")
+# # 
+#  writexl::write_xlsx(Trait_all_noNA, "Output/Trait_all_noNA.xlsx")
+
+
+Flamm_allNew <- read_excel("Output/Flamm_all_new.xlsx")
+Trait_all <- read_excel("Output/Trait_all.xlsx")
+Trait_all_noNA <- read_excel("Output/Trait_all_noNA.xlsx")
+
+colnames(Flamm_all)
+
+# alias columns for my responses (avoiding % and () in names)
+Flamm_all <- Flamm_all |>
+  dplyr::mutate(
+    IgnTime   = `TimeToFlaming(s)`,
+    MaxTemp   = `MaximumFlameTemperature(°C)`,
+    PostBurnM = `PostBurntMassEstimate(%)`
+    
+  )         #i see new columns we created not replaced
+
+#see shared species between flamm and trait all
+shared_species_all <- intersect(Flamm_all$SpeciesNames, Trait_all$SpeciesNames)
+shared_species_all
+
+length(shared_species_all)   #41
+
+#now join Flamm All and trait all by shares species 
+megadata <- inner_join(Flamm_all, Trait_all, by = "SpeciesNames")
+
+colnames(megadata)
+unique(megadata$SpeciesNames)
+
+sapply(megadata, class)
 
 # which species are shared between Flamm and Fieldtrait df
 shared_species <- intersect(unique(Flamm$Accepted_name), 
@@ -76,80 +191,96 @@ print(sort(unique(Shared_spp_df01$species_name)))
 
 colnames(Shared_spp_df01)
 
+################################### Exploratory data analysis ##########################
 
-############################## read in Labtrait data ##########################
+str(Flamm)
 
-# Join Labtrait data to this shared_spp_df01 and create a new Shared_spp_02
-# Shared_spp_df02 will have all flammability traits and leaf traits (field and Lab measured)
+str(Fieldtrait)
 
+colnames(Fieldtrait)
 
-# make lower case and spacing
-Labtrait <- Labtrait %>%
-  mutate(scientific_name_WFO = tolower(trimws(scientific_name_WFO)))
+colnames(Flamm)
 
-colnames(Labtrait)
+# find unique (different) species from flammability & field leaf data
+unique(Flamm$Accepted_name) #52 species 
 
-# confirm shared species with Shared_spp_df01
-shared_species02 <- intersect(unique(Shared_spp_df01$Accepted_name), 
-                              unique(Labtrait$scientific_name_WFO))
-print(sort(unique(shared_species02)))  #Same species n=33
+unique(Fieldtrait$scientific_name_WFO)  #1000+ species 
 
-# join by species to create a new df
-Shared_spp_df02 <- Shared_spp_df01 %>%
-  left_join(Labtrait,
-            by = c("Accepted_name" = "scientific_name_WFO")) %>%
-  filter(Accepted_name %in% shared_species02)
-
-colnames(Shared_spp_df02)
-
-length(unique(Shared_spp_df02$species_name)) #how many different spp
+unique(Fieldtrait$subregion)
 
 
-### join FlammAP with shared_sppdf02
+# ############################## read in Labtrait data ##########################
 # 
-FlammAP <- FlammAP %>%
-  mutate(Species = tolower(trimws(Species)))
-
-#see shared species
-
-flammshared03 <- intersect(unique(Fieldtrait$scientific_name_WFO), 
-                         unique(FlammAP$Species)) 
-
-length(flammshared03)   
-print(flammshared03)   #11 species but 3 are already in the original flammdata (MSC)
-
-
-#filter shared species from each
-filtered_flammshared03 <- FlammAP %>%
-  filter(Species%in% flammshared03)
-
-
-filtered_fieldtrait <- Fieldtrait %>%
-  filter(scientific_name_WFO %in% flammshared03)
-
-
-#join
-filterdFlamm <- left_join(
-  filtered_flammshared03,
-  filtered_fieldtrait,
-  by = c("Species" = "scientific_name_WFO")
-)
-
-unique(filterdFlamm$`Species`)
-
-
-# now i must join filterdFlamm with Shared_spp_df02 = megaFlamm
-#
-#megaFlamm <- filterdFlamm %>%
-  filter(!Species %in% c("sideroxylon inerme",   # to avoid duplicating or replacing values, remove the 3 species when joining
-                         "cassine peragua",
-                         "pterocelastrus tricuspidatus")) %>%
-  left_join(Shared_spp_df02, by = c("Species" = "Accepted_name"))
-
-#
-unique(megaFlamm$`Species`)
-
-
+# # Join Labtrait data to this shared_spp_df01 and create a new Shared_spp_02
+# # Shared_spp_df02 will have all flammability traits and leaf traits (field and Lab measured)
+# 
+# 
+# # make lower case and spacing
+# Labtrait <- Labtrait %>%
+#   mutate(scientific_name_WFO = tolower(trimws(scientific_name_WFO)))
+# 
+# colnames(Labtrait)
+# 
+# # confirm shared species with Shared_spp_df01
+# shared_species02 <- intersect(unique(Shared_spp_df01$Accepted_name), 
+#                               unique(Labtrait$scientific_name_WFO))
+# print(sort(unique(shared_species02)))  #Same species n=33
+# 
+# # join by species to create a new df
+# Shared_spp_df02 <- Shared_spp_df01 %>%
+#   left_join(Labtrait,
+#             by = c("Accepted_name" = "scientific_name_WFO")) %>%
+#   filter(Accepted_name %in% shared_species02)
+# 
+# colnames(Shared_spp_df02)
+# 
+# length(unique(Shared_spp_df02$species_name)) #how many different spp
+# 
+# 
+# ### join FlammAP with shared_sppdf02
+# # 
+# FlammAP <- FlammAP %>%
+#   mutate(Species = tolower(trimws(Species)))
+# 
+# #see shared species
+# 
+# flammshared03 <- intersect(unique(Fieldtrait$scientific_name_WFO), 
+#                          unique(FlammAP$Species)) 
+# 
+# length(flammshared03)   
+# print(flammshared03)   #11 species but 3 are already in the original flammdata (MSC)
+# 
+# 
+# #filter shared species from each
+# filtered_flammshared03 <- FlammAP %>%
+#   filter(Species%in% flammshared03)
+# 
+# 
+# filtered_fieldtrait <- Fieldtrait %>%
+#   filter(scientific_name_WFO %in% flammshared03)
+# 
+# 
+# #join
+# filterdFlamm <- left_join(
+#   filtered_flammshared03,
+#   filtered_fieldtrait,
+#   by = c("Species" = "scientific_name_WFO")
+# )
+# 
+# unique(filterdFlamm$`Species`)
+# 
+# 
+# # now i must join filterdFlamm with Shared_spp_df02 = megaFlamm
+# #
+# #megaFlamm <- filterdFlamm %>%
+#   filter(!Species %in% c("sideroxylon inerme",   # to avoid duplicating or replacing values, remove the 3 species when joining
+#                          "cassine peragua",
+#                          "pterocelastrus tricuspidatus")) %>%
+#   left_join(Shared_spp_df02, by = c("Species" = "Accepted_name"))
+# 
+# #
+# unique(megaFlamm$`Species`)
+# 
 
 
 #the current flamm with all trait data
@@ -794,160 +925,6 @@ m_beta_re <- glmmTMB(
 )
 
 
-######################################################################
-################# Read all DATAs
-
-# cederberg and george data combined
-Flamm <- read_csv("Data/CombinedOG.csv")
-colnames(Flamm) #Accepted_name
-
-anyNA(Flamm) #any NA
-names(Flamm)[colSums(is.na(Flamm)) > 0] #which var has NA
-
-# Alastair Potts (AP) Cape StF data]
-FlammAP <- read_excel("Data/CapeStFrancis_Hons_FlammabilityData_AP.xlsx")
-colnames(FlammAP) #"Species"
-
-anyNA(FlammAP) #any NA
-names(FlammAP)[colSums(is.na(FlammAP)) > 0] #which var has NA
-
-# henry field trait data
-Fieldtrait <- read.csv("Data/Field_Traits_Final.csv")
-colnames(Fieldtrait) #"scientific_name_WFO"
-
-anyNA(Fieldtrait) #any NA
-names(Fieldtrait)[colSums(is.na(Fieldtrait)) > 0] #which var has NA
-
-nrow(Fieldtrait)   # how many observations
-ncol(Fieldtrait)   # how many variables
-
-colSums(is.na(Fieldtrait)) #NA per column
-
-Fieldtrait_noNA <- na.omit(Fieldtrait)
-nrow(Fieldtrait_noNA)   # how many observations
-ncol(Fieldtrait_noNA) 
-
-# lab trait
-Labtrait <- read.csv("Data/Lab_Traits_Final.csv")
-colnames(Labtrait)  ##"scientific_name_WFO"
-
-anyNA(Labtrait) #any NA
-names(Labtrait)[colSums(is.na(Labtrait)) > 0] #which var has NA
-
-nrow(Labtrait)   # how many observations
-ncol(Labtrait)   # how many variables
-
-colSums(is.na(Labtrait)) #NA per column
-
-Labtrait_noNA <- na.omit(Labtrait)
-nrow(Labtrait_noNA)   # how many observations
-ncol(Labtrait_noNA) 
-
-
-# 
-# make all species columns SpeciesNames in all df
-Flamm      <- Flamm      |> rename(SpeciesNames = Accepted_name)
-FlammAP    <- FlammAP    |> rename(SpeciesNames = Species)
-Fieldtrait <- Fieldtrait |> rename(SpeciesNames = scientific_name_WFO)
-Labtrait   <- Labtrait   |> rename(SpeciesNames = scientific_name_WFO)
-
-Fieldtrait_noNA <- Fieldtrait_noNA |> rename(SpeciesNames = scientific_name_WFO)
-Labtrait_noNA <- Labtrait_noNA   |> rename(SpeciesNames = scientific_name_WFO)
-
-
-# make all lower cases
- Flamm$SpeciesNames      <- tolower(Flamm$SpeciesNames)
- FlammAP$SpeciesNames    <- tolower(FlammAP$SpeciesNames)
- Fieldtrait$SpeciesNames <- tolower(Fieldtrait$SpeciesNames)
- Labtrait$SpeciesNames   <- tolower(Labtrait$SpeciesNames)
-
- Labtrait_noNA$SpeciesNames       <- tolower(Labtrait_noNA$SpeciesNames)
- Fieldtrait_noNA$SpeciesNames       <- tolower(Fieldtrait_noNA$SpeciesNames)
-
- unique(Flamm$SpeciesNames) #52 species
- length (unique(FlammAP$SpeciesNames)) #26
-
- length(unique(Fieldtrait$SpeciesNames)) #1327
- unique(Labtrait$SpeciesNames) #1327
-
- length(unique(Fieldtrait_noNA$SpeciesNames)) #1039
- unique(Labtrait_noNA$SpeciesNames) #986
-
-
-# see shared species on Flamms
-shared_species_flamm <- intersect(
-tolower(Flamm$SpeciesNames),
-tolower(FlammAP$SpeciesNames)
-)
-
-shared_species_flamm
-
-# remove the 4 shared species from AP
-FlammAP_filtered <- FlammAP |>
-  filter(!tolower(SpeciesNames) %in% shared_species_flamm)
-
-unique(FlammAP_filtered$SpeciesNames) #22
-
-# combine the flamm df
-Flamm_all <- bind_rows(Flamm, FlammAP_filtered)
-unique(Flamm_all$SpeciesNames) #74
-
-
-Flamm_all <- Flamm_all %>%
-   mutate(`PostBurntMassEstimate(%)` = coalesce(`PostBurntMassEstimate(%)`, `BB_%`))
-
-Flamm_all <- Flamm_all %>%
-  mutate(`MaximumFlameTemperature(°C)` = coalesce(`MaximumFlameTemperature(°C)`, `MT`))
-
-Flamm_all <- Flamm_all %>%
-  mutate(`FMC(%)` = coalesce(`FMC(%)`, `Moisture_Content`))
-
-#
-## combine all trait df
-Trait_all <- left_join(Fieldtrait, Labtrait, by = "SpeciesNames")
-unique(Trait_all$SpeciesNames) #1000+
-
-Trait_all_noNA <- left_join(Fieldtrait_noNA, Labtrait_noNA, by = "SpeciesNames")
-unique(Trait_all_noNA$SpeciesNames) #
-
-
-# save all both combined
-# writexl::write_xlsx(Flamm_all, "Data/Flamm_all.xlsx")
-# 
-# writexl::write_xlsx(Trait_all, "Data/Trait_all.xlsx")
-# 
-# writexl::write_xlsx(Trait_all_noNA, "Data/Trait_all_noNA.xlsx")
-
-
-Flamm_allNew <- read_excel("Data/Flamm_all_new.xlsx")
-Trait_all <- read_excel("Data/Trait_all.xlsx")
-Trait_all_noNA <- read_excel("Data/Trait_all_noNA.xlsx")
-
-colnames(Flamm_all)
-
-# alias columns for my responses (avoiding % and () in names)
-Flamm_all <- Flamm_all |>
-  dplyr::mutate(
-    IgnTime   = `TimeToFlaming(s)`,
-    MaxTemp   = `MaximumFlameTemperature(°C)`,
-    PostBurnM = `PostBurntMassEstimate(%)`
-    
-  )         #i see new columns we created not replaced
-
-#see shared species between flamm and trait all
-shared_species_all <- intersect(Flamm_all$SpeciesNames, Trait_all$SpeciesNames)
-shared_species_all
-
-length(shared_species_all)   #41
-
-#now join Flamm All and trait all by shares species 
-megadata <- inner_join(Flamm_all, Trait_all, by = "SpeciesNames")
-
-colnames(megadata)
-unique(megadata$SpeciesNames)
-
-sapply(megadata, class)
-
 # histogram view 
 numeric_col <- sapply(megadata, is.numeric)
 
@@ -1027,16 +1004,27 @@ megadata <- megadata %>%
 
  #
  ## scale() traits for the following steps 
- megadata <- megadata %>%
+megadata <- megadata %>%
+  mutate(across(all_of(trait_col_reduced), 
+                ~ if(is.numeric(.)) as.numeric(scale(.)) else ., 
+                .names = "{.col}"))
+
+#
+megadata <- megadata %>%
    mutate(across(all_of(trait_col) & where(is.numeric), ~ as.numeric(scale(.))))
  
  # check if trait were scaled 
- sapply(megadata[trait_col], function(x) {
+ sapply(megadata[trait_col_reduced], function(x) {
    if (is.numeric(x)) c(mean = mean(x, na.rm = TRUE),
                         sd   = sd(x, na.rm = TRUE))
    else NA
  })
 
+ #
+ sapply(megadata[trait_col_reduced], function(x) {
+   if (is.numeric(x)) range(x, na.rm = TRUE) else NA
+ })
+ 
  
  ### betareg
  

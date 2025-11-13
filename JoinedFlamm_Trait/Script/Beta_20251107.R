@@ -14,8 +14,8 @@ library(lmerTest)
 library(corrplot)
 
 #####
-Flamm_allNew <- read_excel("Data/Flamm_all_new.xlsx")
-Trait_all_noNA <- read_excel("Data/Trait_all_noNA.xlsx")
+Flamm_allNew <- read_excel("Output/Flamm_all_new.xlsx")
+Trait_all_noNA <- read_excel("Output/Trait_all_noNA.xlsx")
 
 # Trait_all <- read_excel("Data/Trait_all.xlsx")
 colnames(Flamm_allNew)
