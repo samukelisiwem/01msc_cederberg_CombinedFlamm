@@ -1,8 +1,8 @@
-#
-## 
-###20251107
- # install.packages(c("tidyverse", "patchwork", "ggplot2",
- # "betareg","glmmTMB","effects"))
+#  
+# 20251107
+# 
+# install.packages(c("tidyverse", "patchwork", "ggplot2",
+# "betareg","glmmTMB","effects"))
 
 library(tidyverse)
 library(patchwork)
@@ -12,23 +12,23 @@ library(glmmTMB)
 library(effects)
 library(lmerTest)
 library(corrplot)
+library(ggeffects)
 
 #####
-Flamm_allNew <- read_excel("Output/Flamm_all_new.xlsx")
+Flamm_allNew <- read_excel("Output/Flamm_all_new.xlsx") #MT values are maximumft
 Trait_all_noNA <- read_excel("Output/Trait_all_noNA.xlsx")
 
-# Trait_all <- read_excel("Data/Trait_all.xlsx")
 colnames(Flamm_allNew)
 colnames(Trait_all_noNA)
 
+#fixed Flamm allNew 
 
 # alias columns for my responses (avoiding % and () in names)
-Flamm_allNew <- Flamm_allNew |>
-  dplyr::mutate(
+Flamm_allNew <- Flamm_allNew %>% 
+    mutate(
     IgnTime   = `TimeToFlaming(s)`,
     MaxTemp   = `MaximumFlameTemperature(°C)`,
     PostBurnM = `PostBurntMassEstimate(%)`
-    
   )         #i see new columns we created not replaced
 
 #see shared species between flamm and trait all
@@ -37,10 +37,12 @@ shared_species_all
 
 length(shared_species_all)   #41 #39 with noNa
 
-#now join Flamm All and trait all by shares species 
-megadata <- inner_join(Flamm_allNew, Trait_all_noNA, by = "SpeciesNames")
+#now join Flamm All and trait all_noNa by shares species 
+megadata <- inner_join(Flamm_allNew, Trait_all_noNA, by = "SpeciesNames",
+                       relationship = "many-to-many")  #silences the warning
 
 colnames(megadata)
+
 unique(megadata$SpeciesNames)
 
 sapply(megadata, class)
@@ -52,8 +54,9 @@ megadata <- megadata %>%
     pubescence   = as.factor(pubescence),
     num_leaves   = readr::parse_number(as.character(num_leaves)),
     branch_order = as.numeric(branch_order)  
-  )        
+  )
 
+colnames(megadata)
 
 ######
 # histogram 
@@ -92,7 +95,7 @@ megadata[clampFlamm] <- lapply(megadata[clampFlamm], function(x)
 
 summary(megadata[clampFlamm])
 
-# if clammped Should all return FALSE
+# if clamped Should all return FALSE
 sapply(megadata[clampFlamm], function(x) any(x <= 0 | x >= 1, na.rm = TRUE))
 
 
@@ -132,18 +135,31 @@ trait_col_reduced <- c(
 )
 
 #######
-# scale predictors scale() traits for the following steps 
-# megadata <- megadata %>%
-#   mutate(across(all_of(trait_col_reduced) & where(is.numeric), ~ as.numeric(scale(.))))
+# Check classes first
+sapply(megadata[trait_col_reduced], class)
 
-#exclude fmc prop from scaling
+# megadata <- megadata %>%
+# mutate(across(all_of(trait_col_reduced) & where(is.numeric), ~ as.numeric(scale(.))))
+
+# Identify which of the trait columns are numeric
+num_traits <- trait_col_reduced[sapply(megadata[trait_col_reduced], is.numeric)]
+num_traits
+
+# Scale ONLY those numeric traits
+# megadata <- megadata %>%
+#   mutate(
+#     across(all_of(num_traits), ~ as.numeric(scale(.x)))
+#   )
+
+
+# exclude fmc prop from scaling
 megadata <- megadata %>%
-  mutate(across(all_of(setdiff(trait_col_reduced, "FMC_proportion")), 
+  mutate(across(all_of(setdiff(num_traits, "FMC_proportion")),
                 ~ as.numeric(scale(.))))
 
 
 # check if trait were scaled 
-sapply(megadata[trait_col_reduced], function(x) {
+sapply(megadata[num_traits], function(x) {
   if (is.numeric(x)) c(mean = mean(x, na.rm = TRUE),
                        sd   = sd(x, na.rm = TRUE))
   else NA
@@ -151,142 +167,181 @@ sapply(megadata[trait_col_reduced], function(x) {
 
 
 ##########################################
-################### betareg
 
-beta_m1 <- betareg(IgnTime01 ~ height_cm + canopy_area_cm2 + branch_order +
+library(car)
+
+# Fit a simple linear model just to get VIFs (betareg doesn’t have vif)
+###########lm1
+lm_Ign <- lm(
+  IgnTime01 ~ height_cm + canopy_area_cm2 + branch_order +
     pubescence + percent_N + percent_C + d_15N_14N + d_13C_12C + 
     FMC_proportion + num_leaves + leaf_area_cm2 + lma +
-    fwc + succulence + ldmc + lwr,
-  data   = megadata, link = "logit"
+    fwc + ldmc + lwr,  #remove succulence
+  data = megadata
 )
-summary(beta_m1)
+
+vif(lm_Ign)
+
+
+########lm2
+lm_MT <- lm(MaxTemp01 ~
+    height_cm + canopy_area_cm2 + branch_order +
+    pubescence + percent_N + percent_C + d_15N_14N + d_13C_12C + 
+    FMC_proportion + num_leaves + leaf_area_cm2 + lma +
+    fwc + ldmc + lwr, #remove succulence
+  data = megadata
+)
+
+vif(lm_MT)
+
+######## lm3
+lm_PB <- lm(PostBurnM01 ~
+    height_cm + canopy_area_cm2 + branch_order +
+    pubescence + percent_N + percent_C + d_15N_14N + d_13C_12C + 
+    FMC_proportion + num_leaves + leaf_area_cm2 + lma +
+    fwc + ldmc + lwr, #remove succulence
+  data = megadata
+)
+
+vif(lm_PB)
+
+
+################### betareg
+
+beta_Ign <- betareg(IgnTime01 ~ 
+                    height_cm + canopy_area_cm2 + branch_order +
+                    pubescence + percent_N + percent_C + d_15N_14N + d_13C_12C + 
+                    FMC_proportion + num_leaves + leaf_area_cm2 + lma +
+                    fwc + ldmc + lwr,
+                    data = megadata, link = "logit"
+)
+summary(beta_Ign)
+
+# dispersion submodel 
+beta_Ign2 <- betareg(IgnTime01 ~ 
+                    height_cm + canopy_area_cm2 + branch_order +
+                    pubescence + percent_N + percent_C + d_15N_14N + d_13C_12C + 
+                    FMC_proportion + num_leaves + leaf_area_cm2 + lma +
+                    fwc + ldmc + lwr |
+                    FMC_proportion + ldmc + canopy_area_cm2,   # dispersion predictors
+                    data = megadata,
+                    link = "logit"
+)
+
+summary(beta_Ign2)
+
+
+
+
+######## MaxT
+# Combustibility model
+beta_MaxT <- betareg(MaxTemp01 ~ 
+                      height_cm + canopy_area_cm2 + branch_order +
+                      pubescence + percent_N + percent_C + d_15N_14N + d_13C_12C + 
+                      FMC_proportion + num_leaves + leaf_area_cm2 + lma +
+                      fwc + ldmc + lwr,
+                      data   = megadata, link = "logit"
+)
+summary(beta_MaxT)
+
+####
+beta_MaxT2 <- betareg(MaxTemp01 ~ 
+                    height_cm + canopy_area_cm2 + branch_order +
+                    pubescence + percent_N + percent_C + d_15N_14N + d_13C_12C +
+                    FMC_proportion + num_leaves + leaf_area_cm2 + lma +
+                    fwc + ldmc + lwr |
+                    FMC_proportion + ldmc + canopy_area_cm2,
+                    data = megadata,link = "logit"
+)
+
+summary(beta_MaxT2)
+
+
+
+
+# Consumability model
+beta_PostBM <- betareg(PostBurnM01 ~ 
+                       height_cm + canopy_area_cm2 + branch_order +
+                       pubescence + percent_N + percent_C + d_15N_14N + d_13C_12C + 
+                       FMC_proportion + num_leaves + leaf_area_cm2 + lma +
+                       fwc + ldmc + lwr,
+                        data   = megadata, link = "logit"
+)
+summary(beta_PostBM)
+
+#####
+beta_PostBM2 <- betareg(PostBurnM01 ~ 
+                        height_cm + canopy_area_cm2 + branch_order +
+                        pubescence + percent_N + percent_C + d_15N_14N + d_13C_12C +
+                        FMC_proportion + num_leaves + leaf_area_cm2 + lma +
+                        fwc + ldmc + lwr |
+                        FMC_proportion + ldmc + canopy_area_cm2,
+                        data = megadata,link = "logit"
+)
+
+
+
+########## AIC
+AIC(beta_Ign, beta_Ign2)
+
+AIC(beta_MaxT, beta_MaxT2)
+
+AIC(beta_PostBM, beta_PostBM2)
+
+
+
+######### residuals
+par(mfrow=c(2,2))
+plot(beta_Ign2)
+
+plot(beta_MaxT2)
+
+plot(beta_PostBM2)
+
+par(mfrow=c(1,1))
 
 # predictor effects plots
-par(mfrow = c(3, 3))
-plot(predictorEffects (beta_m1))
+plot(ggpredict(beta_Ign2, terms = "pubescence"))
 
-# par(mfrow = c(1, 1))
+plot(ggpredict(beta_Ign2, terms = "canopy_area_cm2"))
+plot(ggpredict(beta_Ign2, terms = "branch_order"))
+plot(ggpredict(beta_Ign2, terms = "num_leaves"))
+plot(ggpredict(beta_Ign2, terms = "lwr"))
+plot(ggpredict(beta_Ign2, terms = "percent_N"))
+plot(ggpredict(beta_Ign2, terms = "d_15N_14N"))
+plot(ggpredict(beta_Ign2, terms = "FMC_proportion")) ###something is off here
+plot(ggpredict(beta_Ign2, terms = "ldmc"))
+plot(ggpredict(beta_Ign2, terms = "lma"))
 
-
-#
-# I <- ggplot(megadata, aes(x = FMC_proportion, y = IgnTime01)) +
-#   geom_point(alpha = 0.5) +
-#   geom_smooth(method = "loess", se = TRUE, color = "blue") +
-#   labs(x = "Fuel Moisture Content (proportion)",
-#        y = "Ignition Time (scaled 0–1)",
-#        title = "Relationship between FMC and Ignition Time") +
-#   theme_minimal()
-# print(I)
-#
+par(mfrow = c(1, 1))  # reset
 
 
-sm <- summary(beta_m1)
-coefs <- as.data.frame(sm$coefficients$mean)
-coefs$term <- rownames(coefs)
-coefs %>%
-  filter(term != "(Intercept)") %>%
-  mutate(abs_est = abs(Estimate)) %>%
-  arrange(desc(abs_est)) %>%
-  ggplot(aes(x = reorder(term, abs_est), y = Estimate)) +
-  geom_point(size = 3) + geom_hline(yintercept = 0, lty = 2) +
-  coord_flip() + theme_minimal() +
-  labs(x = "Trait", y = "Standardized coefficient",
-       title = "Relative influence of traits on ignition time")
-
-################ plot
-
-# Boxplot for categorical variable (pubescence)
-p_pub <- ggplot(megadata, aes(x = pubescence, y = IgnTime01)) +
-  geom_boxplot(alpha = 0.7, fill = "tan") +
-  labs(title = "pubescence", x = "Pubescence", y = "Ignition time (0–1)") +
-  theme_minimal()
-
-p_canopy <- ggplot(megadata, aes(canopy_area_cm2, IgnTime01)) +
-  geom_point(alpha = 0.5) + geom_smooth(method = "loess", color = "blue") +
-  labs(title = "canopy_area_cm2", x = "Canopy area (cm²)", y = "Ignition time") +
-  theme_minimal()
-
-p_branch <- ggplot(megadata, aes(branch_order, IgnTime01)) +
-  geom_point(alpha = 0.5) + geom_smooth(method = "loess", color = "darkgreen") +
-  labs(title = "branch_order", x = "Branch order", y = "Ignition time") +
-  theme_minimal()
-
-p_N <- ggplot(megadata, aes(percent_N, IgnTime01)) +
-  geom_point(alpha = 0.5) + geom_smooth(method = "loess", color = "green4") +
-  labs(title = "percent_N", x = "% Nitrogen", y = "Ignition time") +
-  theme_minimal()
-
-p_C <- ggplot(megadata, aes(percent_C, IgnTime01)) +
-  geom_point(alpha = 0.5) + geom_smooth(method = "loess", color = "forestgreen") +
-  labs(title = "percent_C", x = "% Carbon", y = "Ignition time") +
-  theme_minimal()
-
-p_d15 <- ggplot(megadata, aes(d_15N_14N, IgnTime01)) +
-  geom_point(alpha = 0.5) + geom_smooth(method = "loess", color = "purple") +
-  labs(title = "d_15N_14N", x = "δ15N/14N", y = "Ignition time") +
-  theme_minimal()
-
-p_d13 <- ggplot(megadata, aes(d_13C_12C, IgnTime01)) +
-  geom_point(alpha = 0.5) + geom_smooth(method = "loess", color = "magenta") +
-  labs(title = "d_13C_12C", x = "δ13C/12C", y = "Ignition time") +
-  theme_minimal()
-
-p_FMC <- ggplot(megadata, aes(FMC_proportion, IgnTime01)) +
-  geom_point(alpha = 0.5) + geom_smooth(method = "loess", color = "red") +
-  labs(title = "FMC_proportion", x = "Fuel moisture content", y = "Ignition time") +
-  theme_minimal()
-
-p_num <- ggplot(megadata, aes(num_leaves, IgnTime01)) +
-  geom_point(alpha = 0.5) + geom_smooth(method = "loess", color = "orange") +
-  labs(title = "num_leaves", x = "Number of leaves", y = "Ignition time") +
-  theme_minimal()
-
-p_area <- ggplot(megadata, aes(leaf_area_cm2, IgnTime01)) +
-  geom_point(alpha = 0.5) + geom_smooth(method = "loess", color = "darkorange") +
-  labs(title = "leaf_area_cm2", x = "Leaf area (cm²)", y = "Ignition time") +
-  theme_minimal()
-
-p_lma <- ggplot(megadata, aes(lma, IgnTime01)) +
-  geom_point(alpha = 0.5) + geom_smooth(method = "loess", color = "brown") +
-  labs(title = "lma", x = "LMA", y = "Ignition time") +
-  theme_minimal()
-
-p_succ <- ggplot(megadata, aes(succulence, IgnTime01)) +
-  geom_point(alpha = 0.5) + geom_smooth(method = "loess", color = "deepskyblue4") +
-  labs(title = "succulence", x = "Succulence", y = "Ignition time") +
-  theme_minimal()
-
-p_ldmc <- ggplot(megadata, aes(ldmc, IgnTime01)) +
-  geom_point(alpha = 0.5) + geom_smooth(method = "loess", color = "black") +
-  labs(title = "ldmc", x = "LDMC", y = "Ignition time") +
-  theme_minimal()
-
-p_lwr <- ggplot(megadata, aes(lwr, IgnTime01)) +
-  geom_point(alpha = 0.5) + geom_smooth(method = "loess", color = "grey30") +
-  labs(title = "lwr", x = "LWR", y = "Ignition time") +
-  theme_minimal()
-
-# --------------------------
-# 2️⃣ Combine with patchwork
-# --------------------------
-(p_pub | p_canopy | p_branch) /
-  (p_N | p_C | p_d15) /
-  (p_d13 | p_FMC | p_num) /
-  (p_area | p_lma | p_succ) /
-  (p_ldmc | p_lwr)
-
-
+########################
 # collection event (Site) as a random effect due to differences in devices
+# glmmTMB () for beta distribution + random
+Ign_beta_Si <- glmmTMB(IgnTime01 ~ 
+                      height_cm + canopy_area_cm2 + branch_order +
+                      pubescence + percent_N + percent_C + d_15N_14N + d_13C_12C + 
+                      FMC_proportion + num_leaves + leaf_area_cm2 + lma +fwc + 
+                      ldmc + lwr +
+                      (1 | Site),data = megadata, # site random effect
+                      family = beta_family(link = "logit")
+)
 
-# species as random effect
-# IgnTMB <- glmmTMB(
-#   IgnTime01 ~ height_cm + canopy_area_cm2 + branch_order +
-#     pubescence + percent_N + percent_C + d_15N_14N + d_13C_12C + 
-#     FMC_proportion + num_leaves + leaf_area_cm2 + lma +
-#     fwc + succulence + ldmc + lwr +
-#     (1 | SpeciesNames),
-#   data   = megadata,
-#   family = beta_family(link = "logit")
-# )
-# summary(IgnTMB)
+summary(Ign_beta_Si)
+
+# species as random
+Ign_beta_Spp <- glmmTMB(IgnTime01 ~ height_cm + canopy_area_cm2 + branch_order +
+                          pubescence + percent_N + percent_C + d_15N_14N + d_13C_12C + 
+                          FMC_proportion + num_leaves + leaf_area_cm2 + lma +
+                          fwc + ldmc + lwr +
+                          (1 | SpeciesNames), data = megadata,
+                          family = beta_family(link = "logit")
+)
+
+summary(Ign_beta_Spp)
+
+AIC (Ign_beta_Si, Ign_beta_Spp)
+
+
 

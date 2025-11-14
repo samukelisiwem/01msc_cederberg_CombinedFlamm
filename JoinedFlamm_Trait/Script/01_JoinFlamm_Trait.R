@@ -140,7 +140,7 @@ unique(Trait_all_noNA$SpeciesNames) #
 #  writexl::write_xlsx(Trait_all_noNA, "Output/Trait_all_noNA.xlsx")
 
 
-Flamm_allNew <- read_excel("Output/Flamm_all_new.xlsx")
+Flamm_all <- read_excel("Output/Flamm_all.xlsx")  
 Trait_all <- read_excel("Output/Trait_all.xlsx")
 Trait_all_noNA <- read_excel("Output/Trait_all_noNA.xlsx")
 
