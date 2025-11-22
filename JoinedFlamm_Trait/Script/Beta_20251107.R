@@ -12,34 +12,28 @@ library(glmmTMB)
 library(effects)
 library(lmerTest)
 library(corrplot)
-library(ggeffects)
+
 
 #####
-Flamm_allNew <- read_excel("Output/Flamm_all_new.xlsx") #MT values are maximumft
+Flamm_allNew <- read_excel("Output/Flamm_all NEW.xlsx") #MT values are maxtemp
 Trait_all_noNA <- read_excel("Output/Trait_all_noNA.xlsx")
 
-colnames(Flamm_allNew)
+colnames(Flamm_allNew)        #fixed Flamm allNew 
 colnames(Trait_all_noNA)
 
-#fixed Flamm allNew 
-
-# alias columns for my responses (avoiding % and () in names)
-Flamm_allNew <- Flamm_allNew %>% 
-    mutate(
-    IgnTime   = `TimeToFlaming(s)`,
-    MaxTemp   = `MaximumFlameTemperature(°C)`,
-    PostBurnM = `PostBurntMassEstimate(%)`
-  )         #i see new columns we created not replaced
 
 #see shared species between flamm and trait all
 shared_species_all <- intersect(Flamm_allNew$SpeciesNames, Trait_all_noNA$SpeciesNames)
 shared_species_all
 
-length(shared_species_all)   #41 #39 with noNa
+length(shared_species_all)   #41 #39 with noNa #58
 
 #now join Flamm All and trait all_noNa by shares species 
 megadata <- inner_join(Flamm_allNew, Trait_all_noNA, by = "SpeciesNames",
                        relationship = "many-to-many")  #silences the warning
+
+megadata <- megadata %>%
+  mutate(SpeciesNames = tolower(SpeciesNames))
 
 colnames(megadata)
 
@@ -47,7 +41,38 @@ unique(megadata$SpeciesNames)
 
 sapply(megadata, class)
 
+
+###################################
+#visualise flamm traits
+names(megadata)
+unique(megadata$SpeciesNames) #57
+
+
+ggplot(megadata, aes(x = reorder(SpeciesNames, IgnTime),
+                     y = IgnTime)) +
+  geom_boxplot() +
+  theme_bw() +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1)) +
+  labs(x = "Species (ordered low → high)",y = "Ignition Time (s)")
+
+#
+ggplot(megadata, aes(x = reorder(SpeciesNames, MaxTemp),y = MaxTemp)) +
+  geom_boxplot() +
+  theme_bw() +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1)) +
+  labs(x = "Species (ordered low → high)",y = "Max Flame Temp (°C)")
+
+
+#
+ggplot(megadata, aes(x = reorder(SpeciesNames, PostBurnM),y = PostBurnM)) +
+  geom_boxplot() +
+  theme_bw() +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1)) +
+  labs(x = "Species (ordered low → high)",y = "Post-burn Mass (%)")
+
+
 #######
+
 # to relevant class
 megadata <- megadata %>%
   mutate(
@@ -82,6 +107,7 @@ megadata$MaxTemp01 <- (megadata$MaxTemp - temp_range[1]) / diff(temp_range)
 
 # Post-burn mass -> proportion consumed
 megadata$PostBurnM01 <- (100 - megadata$PostBurnM) / 100
+
 
 #
 ## CLAMP TO AVOID 0 OR 1 
@@ -134,9 +160,13 @@ trait_col_reduced <- c(
   "lma", "fwc", "succulence", "ldmc", "lwr"
 )
 
+
 #######
 # Check classes first
 sapply(megadata[trait_col_reduced], class)
+
+###
+unique(megadata$pubescence) #Levels: Both Low None S
 
 # megadata <- megadata %>%
 # mutate(across(all_of(trait_col_reduced) & where(is.numeric), ~ as.numeric(scale(.))))
@@ -171,6 +201,7 @@ sapply(megadata[num_traits], function(x) {
 library(car)
 
 # Fit a simple linear model just to get VIFs (betareg doesn’t have vif)
+# VIF > 5	strong multicollinearity exists
 ###########lm1
 lm_Ign <- lm(
   IgnTime01 ~ height_cm + canopy_area_cm2 + branch_order +
@@ -301,22 +332,13 @@ plot(beta_PostBM2)
 par(mfrow=c(1,1))
 
 # predictor effects plots
-plot(ggpredict(beta_Ign2, terms = "pubescence"))
 
-plot(ggpredict(beta_Ign2, terms = "canopy_area_cm2"))
-plot(ggpredict(beta_Ign2, terms = "branch_order"))
-plot(ggpredict(beta_Ign2, terms = "num_leaves"))
-plot(ggpredict(beta_Ign2, terms = "lwr"))
-plot(ggpredict(beta_Ign2, terms = "percent_N"))
-plot(ggpredict(beta_Ign2, terms = "d_15N_14N"))
-plot(ggpredict(beta_Ign2, terms = "FMC_proportion")) ###something is off here
-plot(ggpredict(beta_Ign2, terms = "ldmc"))
-plot(ggpredict(beta_Ign2, terms = "lma"))
 
 par(mfrow = c(1, 1))  # reset
 
 
 ########################
+
 # collection event (Site) as a random effect due to differences in devices
 # glmmTMB () for beta distribution + random
 Ign_beta_Si <- glmmTMB(IgnTime01 ~ 

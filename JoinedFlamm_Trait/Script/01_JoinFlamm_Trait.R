@@ -103,14 +103,14 @@ shared_species_flamm <- intersect(
 
 shared_species_flamm
 
-# remove the 4 shared species from AP
-FlammAP_filtered <- FlammAP |>
-  filter(!tolower(SpeciesNames) %in% shared_species_flamm)
-
-unique(FlammAP_filtered$SpeciesNames) #22
+# # remove the 4 shared species from AP
+# FlammAP_filtered <- FlammAP |>
+#   filter(!tolower(SpeciesNames) %in% shared_species_flamm)
+# 
+# unique(FlammAP_filtered$SpeciesNames) #22
 
 # combine the flamm df
-Flamm_all <- bind_rows(Flamm, FlammAP_filtered)
+Flamm_all <- bind_rows(Flamm, FlammAP)
 unique(Flamm_all$SpeciesNames) #74
 
 
@@ -133,11 +133,11 @@ unique(Trait_all_noNA$SpeciesNames) #
 
 
 # save all both combined
-#  writexl::write_xlsx(Flamm_all, "Output/Flamm_all.xlsx")
+  writexl::write_xlsx(Flamm_all, "Output/Flamm_all.xlsx")
 # # 
-#  writexl::write_xlsx(Trait_all, "Output/Trait_all.xlsx")
+  writexl::write_xlsx(Trait_all, "Output/Trait_all.xlsx")
 # # 
-#  writexl::write_xlsx(Trait_all_noNA, "Output/Trait_all_noNA.xlsx")
+ writexl::write_xlsx(Trait_all_noNA, "Output/Trait_all_noNA.xlsx")
 
 
 Flamm_all <- read_excel("Output/Flamm_all.xlsx")  
@@ -168,6 +168,10 @@ colnames(megadata)
 unique(megadata$SpeciesNames)
 
 sapply(megadata, class)
+
+#########################################################
+
+
 
 # which species are shared between Flamm and Fieldtrait df
 shared_species <- intersect(unique(Flamm$Accepted_name), 
