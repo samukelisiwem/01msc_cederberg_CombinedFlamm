@@ -15,18 +15,21 @@ library(corrplot)
 
 
 #####
-Flamm_allNew <- read_excel("Output/Flamm_all NEW.xlsx") #MT values are maxtemp
+Flamm_allNew <- read_excel("Output/Flamm_all NEW.xlsx") #some updates were done on the sheet outside of R
 Trait_all_noNA <- read_excel("Output/Trait_all_noNA.xlsx")
 
-colnames(Flamm_allNew)        #fixed Flamm allNew 
+colnames(Flamm_allNew)        
+unique(Flamm_allNew$SpeciesNames)  #103spp 
+
 colnames(Trait_all_noNA)
+
 
 
 #see shared species between flamm and trait all
 shared_species_all <- intersect(Flamm_allNew$SpeciesNames, Trait_all_noNA$SpeciesNames)
 shared_species_all
 
-length(shared_species_all)   #41 #39 with noNa #58
+length(shared_species_all)  #58
 
 #now join Flamm All and trait all_noNa by shares species 
 megadata <- inner_join(Flamm_allNew, Trait_all_noNA, by = "SpeciesNames",
@@ -37,30 +40,35 @@ megadata <- megadata %>%
 
 colnames(megadata)
 
-unique(megadata$SpeciesNames)
+unique(megadata$SpeciesNames)#58
 
 sapply(megadata, class)
 
 
-###################################
-#visualise flamm traits
-names(megadata)
-unique(megadata$SpeciesNames) #57
+megadata %>%
+  count(SpeciesNames, name = "number of reps") %>%
+  arrange(`number of reps`) %>%
+  print(n = Inf) #this is number of row entries for each species ...
 
+
+###################################
+
+#visualize flamm traits
+names(megadata)
 
 ggplot(megadata, aes(x = reorder(SpeciesNames, IgnTime),
                      y = IgnTime)) +
   geom_boxplot() +
   theme_bw() +
   theme(axis.text.x = element_text(angle = 90, hjust = 1)) +
-  labs(x = "Species (ordered low → high)",y = "Ignition Time (s)")
+  labs(x = "Species (low → high)",y = "Time to flamming (s)")
 
 #
-ggplot(megadata, aes(x = reorder(SpeciesNames, MaxTemp),y = MaxTemp)) +
+ggplot(megadata, aes(x = reorder(SpeciesNames, MaxTemp  ),y = MaxTemp)) +
   geom_boxplot() +
   theme_bw() +
   theme(axis.text.x = element_text(angle = 90, hjust = 1)) +
-  labs(x = "Species (ordered low → high)",y = "Max Flame Temp (°C)")
+  labs(x = " ",y = "Maximum flame temperature (°C)")
 
 
 #
@@ -68,7 +76,7 @@ ggplot(megadata, aes(x = reorder(SpeciesNames, PostBurnM),y = PostBurnM)) +
   geom_boxplot() +
   theme_bw() +
   theme(axis.text.x = element_text(angle = 90, hjust = 1)) +
-  labs(x = "Species (ordered low → high)",y = "Post-burn Mass (%)")
+  labs(x = " ",y = "Completeness of burn (%)")
 
 
 #######
@@ -90,7 +98,7 @@ par(mfrow = c(3, 3))                  # 9 plots per page
 for (col in names(megadata)[numeric_col]) {
   hist(megadata[[col]], main = col, xlab = "", col = "grey80")
 }
-par(mfrow = c(1, 1))
+par(mfrow = c(1, 1)) 
 
 
 ##################################################
@@ -106,12 +114,11 @@ temp_range <- range(megadata$MaxTemp, na.rm = TRUE)
 megadata$MaxTemp01 <- (megadata$MaxTemp - temp_range[1]) / diff(temp_range)
 
 # Post-burn mass -> proportion consumed
-megadata$PostBurnM01 <- (100 - megadata$PostBurnM) / 100
-
+megadata$PostBurnM01 <- (megadata$PostBurnM) / 100
 
 #
 ## CLAMP TO AVOID 0 OR 1 
-eps <- 1e-6  
+eps <- 0.0001  
 
 clampFlamm <- c("IgnTime01", "MaxTemp01", "PostBurnM01")
 
@@ -176,16 +183,16 @@ num_traits <- trait_col_reduced[sapply(megadata[trait_col_reduced], is.numeric)]
 num_traits
 
 # Scale ONLY those numeric traits
-# megadata <- megadata %>%
-#   mutate(
-#     across(all_of(num_traits), ~ as.numeric(scale(.x)))
-#   )
+megadata <- megadata %>%
+  mutate(
+    across(all_of(num_traits), ~ as.numeric(scale(.x)))
+  )
 
 
 # exclude fmc prop from scaling
-megadata <- megadata %>%
-  mutate(across(all_of(setdiff(num_traits, "FMC_proportion")),
-                ~ as.numeric(scale(.))))
+# megadata <- megadata %>%
+#   mutate(across(all_of(setdiff(num_traits, "FMC_proportion")),
+#                 ~ as.numeric(scale(.))))
 
 
 # check if trait were scaled 
@@ -199,9 +206,20 @@ sapply(megadata[num_traits], function(x) {
 ##########################################
 
 library(car)
+################ ign vs fmc check
+ggplot(megadata, aes(x = FMC_proportion, y = IgnTime01)) +
+  geom_point(alpha = 0.6) +
+  geom_smooth(method = "lm", se = TRUE) +
+  labs(
+    x = "Fuel moisture content (proportion)",
+    y = "Ignitability"
+  ) +
+  theme_bw()
 
+#######################
 # Fit a simple linear model just to get VIFs (betareg doesn’t have vif)
 # VIF > 5	strong multicollinearity exists
+
 ###########lm1
 lm_Ign <- lm(
   IgnTime01 ~ height_cm + canopy_area_cm2 + branch_order +
@@ -237,133 +255,138 @@ lm_PB <- lm(PostBurnM01 ~
 vif(lm_PB)
 
 
+###########################################################################
 ################### betareg
-
+######## IgnTime - Ignitability
 beta_Ign <- betareg(IgnTime01 ~ 
                     height_cm + canopy_area_cm2 + branch_order +
                     pubescence + percent_N + percent_C + d_15N_14N + d_13C_12C + 
                     FMC_proportion + num_leaves + leaf_area_cm2 + lma +
                     fwc + ldmc + lwr,
-                    data = megadata, link = "logit"
-)
+                    data = megadata, link = "logit")
 summary(beta_Ign)
 
-# dispersion submodel 
-beta_Ign2 <- betareg(IgnTime01 ~ 
-                    height_cm + canopy_area_cm2 + branch_order +
-                    pubescence + percent_N + percent_C + d_15N_14N + d_13C_12C + 
-                    FMC_proportion + num_leaves + leaf_area_cm2 + lma +
-                    fwc + ldmc + lwr |
-                    FMC_proportion + ldmc + canopy_area_cm2,   # dispersion predictors
-                    data = megadata,
-                    link = "logit"
-)
-
-summary(beta_Ign2)
-
-
-
-
-######## MaxT
-# Combustibility model
+######## MaxT -Combustibility 
 beta_MaxT <- betareg(MaxTemp01 ~ 
-                      height_cm + canopy_area_cm2 + branch_order +
-                      pubescence + percent_N + percent_C + d_15N_14N + d_13C_12C + 
-                      FMC_proportion + num_leaves + leaf_area_cm2 + lma +
-                      fwc + ldmc + lwr,
-                      data   = megadata, link = "logit"
-)
-summary(beta_MaxT)
-
-####
-beta_MaxT2 <- betareg(MaxTemp01 ~ 
-                    height_cm + canopy_area_cm2 + branch_order +
-                    pubescence + percent_N + percent_C + d_15N_14N + d_13C_12C +
-                    FMC_proportion + num_leaves + leaf_area_cm2 + lma +
-                    fwc + ldmc + lwr |
-                    FMC_proportion + ldmc + canopy_area_cm2,
-                    data = megadata,link = "logit"
-)
-
-summary(beta_MaxT2)
-
-
-
-
-# Consumability model
-beta_PostBM <- betareg(PostBurnM01 ~ 
                        height_cm + canopy_area_cm2 + branch_order +
                        pubescence + percent_N + percent_C + d_15N_14N + d_13C_12C + 
                        FMC_proportion + num_leaves + leaf_area_cm2 + lma +
                        fwc + ldmc + lwr,
-                        data   = megadata, link = "logit"
-)
+                       data   = megadata, link = "logit")
+summary(beta_MaxT)
+
+###### Consumability 
+beta_PostBM <- betareg(PostBurnM01 ~ 
+                         height_cm + canopy_area_cm2 + branch_order +
+                         pubescence + percent_N + percent_C + d_15N_14N + d_13C_12C + 
+                         FMC_proportion + num_leaves + leaf_area_cm2 + lma +
+                         fwc + ldmc + lwr,
+                         data   = megadata, link = "logit")
 summary(beta_PostBM)
 
-#####
-beta_PostBM2 <- betareg(PostBurnM01 ~ 
-                        height_cm + canopy_area_cm2 + branch_order +
-                        pubescence + percent_N + percent_C + d_15N_14N + d_13C_12C +
-                        FMC_proportion + num_leaves + leaf_area_cm2 + lma +
-                        fwc + ldmc + lwr |
-                        FMC_proportion + ldmc + canopy_area_cm2,
-                        data = megadata,link = "logit"
-)
+
+##########################
+# effects plots
+
+library(ggeffects)
+
+eff_fmc <- ggpredict(beta_Ign, terms = "FMC_proportion")
+plot(eff_fmc)
+
+####################
 
 
-
-########## AIC
-AIC(beta_Ign, beta_Ign2)
-
-AIC(beta_MaxT, beta_MaxT2)
-
-AIC(beta_PostBM, beta_PostBM2)
-
-
-
-######### residuals
+################### residuals
 par(mfrow=c(2,2))
-plot(beta_Ign2)
+plot(beta_Ign)
 
-plot(beta_MaxT2)
+plot(beta_MaxT)
 
-plot(beta_PostBM2)
+plot(beta_PostBM)
 
 par(mfrow=c(1,1))
 
-# predictor effects plots
+###############################################################
 
-
-par(mfrow = c(1, 1))  # reset
-
-
-########################
-
-# collection event (Site) as a random effect due to differences in devices
+############################### betareg with random factors 
+#  collection event (Site) as a random effect due to differences in devices
 # glmmTMB () for beta distribution + random
-Ign_beta_Si <- glmmTMB(IgnTime01 ~ 
-                      height_cm + canopy_area_cm2 + branch_order +
-                      pubescence + percent_N + percent_C + d_15N_14N + d_13C_12C + 
+Ign_site <- glmmTMB(IgnTime01 ~ 
+                      height_cm + canopy_area_cm2 + branch_order + pubescence + 
+                      percent_N + percent_C + d_15N_14N + d_13C_12C + 
                       FMC_proportion + num_leaves + leaf_area_cm2 + lma +fwc + 
                       ldmc + lwr +
-                      (1 | Site),data = megadata, # site random effect
-                      family = beta_family(link = "logit")
-)
+                      (1 | Site), 
+                      data = megadata, # site random effect
+                      family = beta_family(link = "logit"))
 
-summary(Ign_beta_Si)
+summary(Ign_site)
 
 # species as random
-Ign_beta_Spp <- glmmTMB(IgnTime01 ~ height_cm + canopy_area_cm2 + branch_order +
-                          pubescence + percent_N + percent_C + d_15N_14N + d_13C_12C + 
-                          FMC_proportion + num_leaves + leaf_area_cm2 + lma +
-                          fwc + ldmc + lwr +
-                          (1 | SpeciesNames), data = megadata,
-                          family = beta_family(link = "logit")
-)
+Ign_spp <- glmmTMB(IgnTime01 ~ 
+                      height_cm + canopy_area_cm2 + branch_order + pubescence + 
+                      percent_N + percent_C + d_15N_14N + d_13C_12C + 
+                      FMC_proportion + num_leaves + leaf_area_cm2 + lma + fwc + 
+                      ldmc + lwr +
+                      (1 | SpeciesNames), 
+                      data = megadata,
+                      family = beta_family(link = "logit"))
 
-summary(Ign_beta_Spp)
-
-AIC (Ign_beta_Si, Ign_beta_Spp)
+summary(Ign_spp)
 
 
+################ MT
+MT_site <- glmmTMB(MaxTemp01 ~ 
+                      height_cm + canopy_area_cm2 + branch_order + pubescence + 
+                      percent_N + percent_C + d_15N_14N + d_13C_12C + 
+                      FMC_proportion + num_leaves + leaf_area_cm2 + lma +fwc + 
+                      ldmc + lwr +
+                      (1 | Site), 
+                    data = megadata, # site random effect
+                    family = beta_family(link = "logit"))
+
+summary(MT_site)
+
+# species as random
+MT_spp <- glmmTMB(MaxTemp01 ~ 
+                     height_cm + canopy_area_cm2 + branch_order + pubescence + 
+                     percent_N + percent_C + d_15N_14N + d_13C_12C + 
+                     FMC_proportion + num_leaves + leaf_area_cm2 + lma + fwc + 
+                     ldmc + lwr +
+                     (1 | SpeciesNames), 
+                   data = megadata,
+                   family = beta_family(link = "logit"))
+
+summary(MT_spp)
+
+
+################ PBurn
+PB_site <- glmmTMB(PostBurnM01 ~ 
+                     height_cm + canopy_area_cm2 + branch_order + pubescence + 
+                     percent_N + percent_C + d_15N_14N + d_13C_12C + 
+                     FMC_proportion + num_leaves + leaf_area_cm2 + lma +fwc + 
+                     ldmc + lwr +
+                     (1 | Site), 
+                   data = megadata, # site random effect
+                   family = beta_family(link = "logit"))
+
+summary(PB_site)
+
+# species as random
+PB_spp <- glmmTMB(PostBurnM01 ~ 
+                    height_cm + canopy_area_cm2 + branch_order + pubescence + 
+                    percent_N + percent_C + d_15N_14N + d_13C_12C + 
+                    FMC_proportion + num_leaves + leaf_area_cm2 + lma + fwc + 
+                    ldmc + lwr +
+                    (1 | SpeciesNames), 
+                  data = megadata,
+                  family = beta_family(link = "logit"))
+
+summary(PB_spp)
+
+
+#################### AIC
+AIC(beta_Ign, Ign_site, Ign_spp)
+AIC(beta_MaxT, MT_site, MT_spp)
+AIC(beta_PostBM, PB_site, PB_spp)
 
