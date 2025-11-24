@@ -368,7 +368,7 @@ PB_site <- glmmTMB(PostBurnM01 ~
                    data = megadata, # site random effect
                    family = beta_family(link = "logit"))
 
-summary(PB_site)
+summary(PB_site) 
 
 # species as random
 PB_spp <- glmmTMB(PostBurnM01 ~ 
@@ -383,7 +383,7 @@ PB_spp <- glmmTMB(PostBurnM01 ~
 summary(PB_spp)
 
 
-#################### AIC
+####### AIC
 AIC(beta_Ign, Ign_site, Ign_spp)
 AIC(beta_MaxT, MT_site, MT_spp)
 AIC(beta_PostBM, PB_site, PB_spp)
