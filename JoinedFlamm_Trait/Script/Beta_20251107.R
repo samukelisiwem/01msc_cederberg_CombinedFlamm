@@ -1,20 +1,20 @@
 #  
 #################### 20251107 ###########################################
 # 
-# install.packages(c("tidyverse", "patchwork", "ggplot2",
-# "betareg","glmmTMB","effects"))
+# install.packages(c("tidyverse", "patchwork","betareg","glmmTMB","ggeffects"))
 
 library(tidyverse)
 library(patchwork)
 library(readxl)
 library(betareg)
 library(glmmTMB)
-library(effects)
+library(ggeffects)
 library(lmerTest)
 library(corrplot)
 
 
-#####
+###############################################################################
+# read in dfs : )
 Flamm_allNew <- read_excel("Output/Flamm_all NEW.xlsx") #some updates were done on the sheet outside of R
 Trait_all_noNA <- read_excel("Output/Trait_all_noNA.xlsx")
 
@@ -24,31 +24,31 @@ unique(Flamm_allNew$SpeciesNames)  #103spp
 colnames(Trait_all_noNA)
 
 
-
 #see shared species between flamm and trait all
 shared_species_all <- intersect(Flamm_allNew$SpeciesNames, Trait_all_noNA$SpeciesNames)
 shared_species_all
 
 length(shared_species_all)  #58
 
-#now join Flamm All and trait all_noNa by shares species 
+#now join Flamm All and trait all_noNa by shared species 
 megadata <- inner_join(Flamm_allNew, Trait_all_noNA, by = "SpeciesNames",
-                       relationship = "many-to-many")  #silences the warning
+                       relationship = "many-to-many")  #silences the warning they say
 
 megadata <- megadata %>%
   mutate(SpeciesNames = tolower(SpeciesNames))
 
+#
 colnames(megadata)
 
-unique(megadata$SpeciesNames)#58
+unique(megadata$SpeciesNames) #58
 
 sapply(megadata, class)
 
-
-megadata %>%
-  count(SpeciesNames, name = "number of reps") %>%
-  arrange(`number of reps`) %>%
-  print(n = Inf) #this is number of row entries for each species ...
+#
+# megadata %>%
+#   count(SpeciesNames, name = "number of reps") %>%
+#   arrange(`number of reps`) %>%
+#   print(n = Inf) #this is number of row entries for each species ...
 
 
 ###############################################################################
@@ -159,7 +159,7 @@ corrplot(cor_matrix01, method = "pie", type = "upper", tl.cex = 0.7)
 
 #after cormatrix 16 traits left
 trait_col_reduced <- c(
-  "height_cm", "canopy_area_cm2",  # 08 Field traits 
+  "height_cm", "canopy_area_cm2",  # 8 Field traits 
   "branch_order", "pubescence", "percent_N", "percent_C",
   "d_15N_14N", "d_13C_12C",
   
@@ -198,7 +198,6 @@ sapply(megadata[num_traits], function(x) {
                        sd   = sd(x, na.rm = TRUE))
   else NA
 })
-
 
 ###############################################################################
 library(car)
@@ -286,15 +285,11 @@ summary(beta_PostBM)
 ###############################################################################
 # effects plots
 
-library(ggeffects)
-
 eff_fmc <- ggpredict(beta_Ign, terms = "FMC_proportion")
 plot(eff_fmc)
 
 ###############################################################################
-
-
-################### residuals
+# residuals
 par(mfrow=c(2,2))
 plot(beta_Ign)
 
@@ -334,13 +329,14 @@ summary(Ign_spp)
 
 
 ################ MT
+# site random effect
 MT_site <- glmmTMB(MaxTemp01 ~ 
                       height_cm + canopy_area_cm2 + branch_order + pubescence + 
                       percent_N + percent_C + d_15N_14N + d_13C_12C + 
                       FMC_proportion + num_leaves + leaf_area_cm2 + lma +fwc + 
                       ldmc + lwr +
                       (1 | Site), 
-                    data = megadata, # site random effect
+                    data = megadata, 
                     family = beta_family(link = "logit"))
 
 summary(MT_site)
