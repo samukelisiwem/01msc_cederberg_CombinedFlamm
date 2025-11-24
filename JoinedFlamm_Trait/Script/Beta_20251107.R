@@ -15,6 +15,8 @@ library(corrplot)
 
 ###############################################################################
 # read in dfs : )
+
+#####
 Flamm_allNew <- read_excel("Output/Flamm_all NEW.xlsx") #some updates were done on the sheet outside of R
 Trait_all_noNA <- read_excel("Output/Trait_all_noNA.xlsx")
 
@@ -22,6 +24,7 @@ colnames(Flamm_allNew)
 unique(Flamm_allNew$SpeciesNames)  #103spp 
 
 colnames(Trait_all_noNA)
+
 
 
 #see shared species between flamm and trait all
@@ -42,6 +45,8 @@ colnames(megadata)
 
 unique(megadata$SpeciesNames) #58
 
+unique(megadata$SpeciesNames)#58
+
 sapply(megadata, class)
 
 #
@@ -52,6 +57,18 @@ sapply(megadata, class)
 
 
 ###############################################################################
+
+#visualize flamm traits
+names(megadata)
+
+megadata %>%
+  count(SpeciesNames, name = "number of reps") %>%
+  arrange(`number of reps`) %>%
+  print(n = Inf) #this is number of row entries for each species ...
+
+
+
+###################################
 
 #visualize flamm traits
 names(megadata)
@@ -201,6 +218,16 @@ sapply(megadata[num_traits], function(x) {
 
 ###############################################################################
 library(car)
+################ ign vs fmc check
+ggplot(megadata, aes(x = FMC_proportion, y = IgnTime01)) +
+  geom_point(alpha = 0.6) +
+  geom_smooth(method = "lm", se = TRUE) +
+  labs(
+    x = "Fuel moisture content (proportion)",
+    y = "Ignitability"
+  ) +
+  theme_bw()
+
 
 # ign vs fmc check
 ggplot(megadata, aes(x = FMC_proportion, y = IgnTime01)) +
@@ -213,6 +240,9 @@ ggplot(megadata, aes(x = FMC_proportion, y = IgnTime01)) +
 
 
 ###############################################################################
+
+#######################
+
 # Fit a simple linear model just to get VIFs (betareg doesn’t have vif)
 # VIF > 5	strong multicollinearity exists
 
@@ -281,6 +311,14 @@ beta_PostBM <- betareg(PostBurnM01 ~
                          data   = megadata, link = "logit")
 summary(beta_PostBM)
 
+##########################
+# effects plots
+
+library(ggeffects)
+
+eff_fmc <- ggpredict(beta_Ign, terms = "FMC_proportion")
+plot(eff_fmc)
+
 
 ###############################################################################
 # effects plots
@@ -298,6 +336,7 @@ plot(beta_MaxT)
 plot(beta_PostBM)
 
 par(mfrow=c(1,1))
+
 
 ###############################################################################
 
@@ -364,6 +403,7 @@ PB_site <- glmmTMB(PostBurnM01 ~
                    data = megadata, # site random effect
                    family = beta_family(link = "logit"))
 
+
 summary(PB_site) 
 
 # species as random
@@ -377,7 +417,6 @@ PB_spp <- glmmTMB(PostBurnM01 ~
                   family = beta_family(link = "logit"))
 
 summary(PB_spp)
-
 
 ####### AIC
 AIC(beta_Ign, Ign_site, Ign_spp)
