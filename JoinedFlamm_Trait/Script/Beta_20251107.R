@@ -1,5 +1,5 @@
 #  
-#################### 20251107 ###########################################
+#################### created 20251107 ###########################################
 # 
 # install.packages(c("tidyverse", "patchwork","betareg","glmmTMB","ggeffects"))
 
@@ -37,6 +37,7 @@ length(shared_species_all)  #58
 megadata <- inner_join(Flamm_allNew, Trait_all_noNA, by = "SpeciesNames",
                        relationship = "many-to-many")  #silences the warning they say
 
+
 megadata <- megadata %>%
   mutate(SpeciesNames = tolower(SpeciesNames))
 
@@ -66,13 +67,11 @@ megadata %>%
   arrange(`number of reps`) %>%
   print(n = Inf) #this is number of row entries for each species ...
 
-
+unique(megadata$SpeciesNames)
 
 ###################################
 
 #visualize flamm traits
-names(megadata)
-
 ggplot(megadata, aes(x = reorder(SpeciesNames, IgnTime),
                      y = IgnTime)) +
   geom_boxplot() +
@@ -189,7 +188,7 @@ trait_col_reduced <- c(
 sapply(megadata[trait_col_reduced], class)
 
 #
-unique(megadata$pubescence) #Levels: Both Low None S
+# unique(megadata$pubescence) #Levels: Both Low None S
 
 # megadata <- megadata %>%
 # mutate(across(all_of(trait_col_reduced) & where(is.numeric), ~ as.numeric(scale(.))))
@@ -218,6 +217,7 @@ sapply(megadata[num_traits], function(x) {
 
 ###############################################################################
 library(car)
+
 ################ ign vs fmc check
 ggplot(megadata, aes(x = FMC_proportion, y = IgnTime01)) +
   geom_point(alpha = 0.6) +
@@ -240,8 +240,6 @@ ggplot(megadata, aes(x = FMC_proportion, y = IgnTime01)) +
 
 
 ###############################################################################
-
-#######################
 
 # Fit a simple linear model just to get VIFs (betareg doesn’t have vif)
 # VIF > 5	strong multicollinearity exists
@@ -280,7 +278,6 @@ lm_PB <- lm(PostBurnM01 ~
 
 vif(lm_PB)
 
-
 ###############################################################################
 ################### betareg
 
@@ -314,17 +311,9 @@ summary(beta_PostBM)
 ##########################
 # effects plots
 
-library(ggeffects)
-
 eff_fmc <- ggpredict(beta_Ign, terms = "FMC_proportion")
 plot(eff_fmc)
 
-
-###############################################################################
-# effects plots
-
-eff_fmc <- ggpredict(beta_Ign, terms = "FMC_proportion")
-plot(eff_fmc)
 
 ###############################################################################
 # residuals
@@ -336,7 +325,6 @@ plot(beta_MaxT)
 plot(beta_PostBM)
 
 par(mfrow=c(1,1))
-
 
 ###############################################################################
 
