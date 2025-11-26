@@ -44,8 +44,6 @@ colnames(megadata)
 
 unique(megadata$SpeciesNames) #58
 
-unique(megadata$SpeciesNames)#58
-
 sapply(megadata, class)
 
 #
@@ -227,16 +225,6 @@ ggplot(megadata, aes(x = FMC_proportion, y = IgnTime01)) +
   theme_bw()
 
 
-# ign vs fmc check
-ggplot(megadata, aes(x = FMC_proportion, y = IgnTime01)) +
-  geom_point(alpha = 0.6) +
-  geom_smooth(method = "lm", se = TRUE) +
-  labs(
-    x = "Fuel moisture content (proportion)",
-    y = "Ignitability") +
-  theme_bw()
-
-
 ###############################################################################
 
 # Fit a simple linear model just to get VIFs (betareg doesn’t have vif)
@@ -288,6 +276,22 @@ beta_Ign <- betareg(IgnTime01 ~
                     data = megadata, link = "logit")
 summary(beta_Ign)
 
+
+############## visualise all fixed effects for ignitability
+fixE<- c("height_cm", "canopy_area_cm2", "branch_order", "pubescence",
+          "percent_N", "percent_C", "d_15N_14N", "d_13C_12C", "FMC_proportion",
+          "num_leaves", "leaf_area_cm2", "lma", "fwc", "ldmc", "lwr")
+
+#
+for (v in fixE) {
+  p <- ggpredict(MT_site, terms = v) %>% 
+    plot() + 
+    ggtitle(paste("Maxtemp vs", v))
+  print(p)
+}
+
+#############################
+
 ######## MaxT -Combustibility 
 beta_MaxT <- betareg(MaxTemp01 ~ 
                        height_cm + canopy_area_cm2 + branch_order +
@@ -297,6 +301,7 @@ beta_MaxT <- betareg(MaxTemp01 ~
                        data   = megadata, link = "logit")
 summary(beta_MaxT)
 
+
 ###### Consumability 
 beta_PostBM <- betareg(PostBurnM01 ~ 
                          height_cm + canopy_area_cm2 + branch_order +
@@ -305,13 +310,6 @@ beta_PostBM <- betareg(PostBurnM01 ~
                          fwc + ldmc + lwr,
                          data   = megadata, link = "logit")
 summary(beta_PostBM)
-
-##########################
-# effects plots
-
-eff_fmc <- ggpredict(beta_Ign, terms = "FMC_proportion")
-plot(eff_fmc)
-
 
 ###############################################################################
 # residuals
@@ -324,10 +322,13 @@ plot(beta_PostBM)
 
 par(mfrow=c(1,1))
 
+
 ###############################################################################
 
 ########## betareg with random factors 
-#  collection event (Site) as a random effect due to differences in devices
+
+# https://deepwiki.com/cran/glmmTMB/2-getting-started
+# collection event (Site) as a random effect due to differences in devices
 # glmmTMB () for beta distribution + random
 Ign_site <- glmmTMB(IgnTime01 ~ 
                       height_cm + canopy_area_cm2 + branch_order + pubescence + 
@@ -336,9 +337,13 @@ Ign_site <- glmmTMB(IgnTime01 ~
                       ldmc + lwr +
                       (1 | Site), 
                       data = megadata, # site random effect
-                      family = beta_family(link = "logit"))
+                      family = beta_family()) #removing the logit changed nothing
 
 summary(Ign_site)
+
+fixef(Ign_site) #extract fixed-effects estimates
+ranef(Ign_site) #extract random effects. cool : )
+
 
 # species as random
 Ign_spp <- glmmTMB(IgnTime01 ~ 
@@ -350,8 +355,10 @@ Ign_spp <- glmmTMB(IgnTime01 ~
                       data = megadata,
                       family = beta_family(link = "logit"))
 
-summary(Ign_spp)
+summary(Ign_spp)  #fmcprop is -(ve)??
 
+fixef(Ign_spp)
+ranef(Ign_spp)
 
 ################ MT
 # site random effect
