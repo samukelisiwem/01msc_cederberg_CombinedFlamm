@@ -416,3 +416,27 @@ AIC(beta_Ign, Ign_site, Ign_spp)
 AIC(beta_MaxT, MT_site, MT_spp)
 AIC(beta_PostBM, PB_site, PB_spp)
 
+
+################################################
+# growthform
+
+beta_MaxTGF <- betareg(MaxTemp01 ~ 
+                       growth_form,
+                     data   = megadata, link = "logit")
+summary(beta_MaxTGF)
+
+#
+beta_MaxTGF2 <- glmmTMB(MaxTemp01 ~ growth_form + 
+                          (1 | SpeciesNames),
+                        data = megadata, family = beta_family())
+summary(beta_MaxTGF2)
+
+#
+beta_MaxTGF3 <- glmmTMB(MaxTemp01 ~ growth_form + 
+                          (1 | Site),
+                        data = megadata, family = beta_family())
+summary(beta_MaxTGF3)
+
+########## 
+AIC(beta_MaxTGF, beta_MaxTGF2, beta_MaxTGF3)
+
